@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"e:/contact-center-hq/frontend/src/components/Header\" \"e:/contact-center-hq/frontend/src/components/Main\" \"e:/contact-center-hq/frontend/src/components/Footer\")"
+    ],
+    "additionalDirectories": [
+      "e:\\contact-center-hq\\frontend\\src\\components\\Header"
+    ]
+  }
+}

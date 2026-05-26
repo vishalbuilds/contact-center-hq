@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(jsx?|css\\)$\")",
+      "Bash(mkdir -p \"e:/contact-center-hq/frontend/src/components/SearchBar\" \"e:/contact-center-hq/frontend/src/components/ResultsList\" \"e:/contact-center-hq/frontend/src/components/RecordPanel\")"
+    ],
+    "additionalDirectories": [
+      "e:\\contact-center-hq\\frontend\\src\\components"
+    ]
+  }
+}

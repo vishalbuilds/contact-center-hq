@@ -1,0 +1,53 @@
+{
+  "CCaaS-initial-config": {
+    "login": "+15551234567",
+    "defaultLanguage": "en-us",
+    "AgentArn": "arn:aws:connect:us-east-1:123456789012:instance/abcd1234/agent/efgh5678",
+    "lob": "aa",
+    "enableRecording": false,
+    "timezone": "America/New_York",
+    "shift": "Day",
+    "supervisor": "Jane Smith",
+    "team": "Alpha",
+    "location": "Remote",
+    "employmentType": "Full-Time",
+    "hireDate": "2021-05-10",
+    "lastLogin": "2026-05-27T08:00:00Z",
+    "status": "Active",
+    "notes": "Top performer"
+  },
+  "CCaaS-user-did-mapping": {
+    "DID": "+15559876543",
+    "loginId": "jdoe",
+    "AgentFirstName": "John",
+    "AgentLastName": "Doe",
+    "extension": "1042",
+    "queue": "",
+    "VoiceMail": "1042",
+    "onLeave": false,
+    "extendLeaveVoicemail": "",
+    "department": "Support",
+    "role": "Agent",
+    "language": "en-us",
+    "skills": "sales,english",
+    "manager": "Jane Smith",
+    "region": "NA",
+    "active": true,
+    "createdAt": "2022-01-01",
+    "updatedAt": "2022-06-01",
+    "customField1": "VIP"
+  },
+  "CCaaS-voicemail-access": {
+    "mailBoxNumber": "1042",
+    "email": "john.doe@company.com",
+    "firstTimeLogin": false,
+    "pinCode": "1234",
+    "pin": ""
+  },
+  "CCaaS-outbound-mapping": {
+    "login": "arn:aws:connect:us-east-1:123456789012:instance/abcd1234/queue/ijkl9012",
+    "arnType": "Queue",
+    "PrdCallerIdTFN": "+18005551234",
+    "QueueName": "Sales Queue"
+  }
+}
