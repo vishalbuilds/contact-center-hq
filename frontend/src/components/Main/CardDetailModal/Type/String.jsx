@@ -1,12 +1,14 @@
 export default function StringField({ field, value, onChange, error }) {
+  const inputId = `field-${field.id}`;
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-[#3b1a3b]">
+      <label htmlFor={inputId} className="text-xs font-semibold text-[#3b1a3b]">
         {field.title}
         {field.required && <span className="text-rose-700 ml-1">*</span>}
       </label>
       <p className="text-[10px] text-[#7a4f7a] leading-tight">{field.description}</p>
       <input
+        id={inputId}
         type="text"
         value={value ?? ""}
         onChange={(e) => onChange(field.id, e.target.value)}

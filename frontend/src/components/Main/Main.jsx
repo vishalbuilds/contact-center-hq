@@ -36,6 +36,8 @@ export default function Main() {
 
       <hr className="border-t border-[#b8a8b8]" />
 
+
+      {/* Sample or more cases can be added based on requirement */}
       <section>
         <h2 className="text-lg font-bold mb-3 pl-3 border-l-4 border-rose-900 text-[#5b2d5b]">
           Section Two

@@ -7,6 +7,14 @@
     "primaryKey": "dins",
     "fields": [
       {
+        "id": "dins",
+        "description": "primary identifier for the config record",
+        "type": "string",
+        "title": "DINS",
+        "defaultValue": "",
+        "required": true
+      },
+      {
         "id": "login",
         "description": "user login id",
         "type": "string",
@@ -323,7 +331,7 @@
     "primaryKey": "QueueArn",
     "fields": [
       {
-        "id": "login",
+        "id": "QueueArn",
         "description": "Amazon resource name of the queue",
         "type": "string",
         "title": "QueueArn",
