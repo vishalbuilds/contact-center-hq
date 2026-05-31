@@ -1,4 +1,4 @@
-export default function DropDownField({ field, value, onChange, error }) {
+export default function DropdownField({ field, value, onChange, error }) {
   const selectId = `field-${field.id}`;
   return (
     <div className="flex flex-col gap-1">

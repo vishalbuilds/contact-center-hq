@@ -3,14 +3,7 @@ FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm ci
-
-ARG VITE_AZURE_CLIENT_ID
-ARG VITE_AZURE_TENANT_ID
-ARG VITE_API_SCOPE
-ENV VITE_AZURE_CLIENT_ID=$VITE_AZURE_CLIENT_ID \
-    VITE_AZURE_TENANT_ID=$VITE_AZURE_TENANT_ID \
-    VITE_API_SCOPE=$VITE_API_SCOPE
+RUN npm install
 
 COPY frontend/ ./
 RUN npm run build
@@ -23,15 +16,17 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_SYSTEM_PYTHON=1
+
 # Install Python deps before copying source (layer cache)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+RUN cd backend && uv export --frozen --no-dev --no-hashes -o /tmp/requirements.txt \
+    && uv pip install --system -r /tmp/requirements.txt
 
 # Backend source
 COPY backend/ ./backend/
-
-# Schema file read at runtime by the backend — must match SCHEMA_PATH in main.py
-COPY frontend/uiSchema.json ./frontend/uiSchema.json
 
 # Built frontend assets — path must match STATIC_DIR in main.py (frontend/dist)
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
@@ -39,9 +34,12 @@ COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
 USER appuser
 
+ENV PYTHONPATH=/app/backend
+WORKDIR /app/backend
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
   CMD curl -fsS http://localhost:8000/api/health || exit 1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

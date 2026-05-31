@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-export default function ResultRow({ pkTitle, pkValue, onOpen, onDuplicate, onDelete }) {
+export default function SearchResult({ pkTitle, pkValue, onOpen, onDuplicate, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const menuRef = useRef(null);
@@ -20,9 +20,7 @@ export default function ResultRow({ pkTitle, pkValue, onOpen, onDuplicate, onDel
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-[#d4c4d4] hover:border-rose-300 transition-colors">
       <div>
-        <p className="text-xs text-[#8b6b8b] uppercase tracking-wide leading-tight">
-          {pkTitle}
-        </p>
+        <p className="text-xs text-[#8b6b8b] uppercase tracking-wide leading-tight">{pkTitle}</p>
         <p className="font-mono text-sm font-semibold text-[#3b1a3b]">{pkValue}</p>
       </div>
 

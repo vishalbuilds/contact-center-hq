@@ -1,4 +1,4 @@
-export default function Cards({ title, description, onClick }) {
+export default function TableCard({ title, description, onClick }) {
     return (
         <button
             type="button"
@@ -8,9 +8,9 @@ export default function Cards({ title, description, onClick }) {
             flex flex-col gap-1 overflow-hidden bg-[#d4c8d4] text-left
             transition-all duration-200
             ${onClick
-                ? "hover:bg-[#c4b0c4] hover:scale-105 active:bg-[#bda7bd] active:scale-110 cursor-pointer"
-                : "opacity-60 cursor-default"
-            }`}
+                    ? "hover:bg-[#c4b0c4] hover:scale-105 active:bg-[#bda7bd] active:scale-110 cursor-pointer"
+                    : "opacity-60 cursor-default"
+                }`}
         >
             <div className="text-xs font-semibold text-[#3b1a3b] wrap-break-word">{title}</div>
             <div className="text-[10px] text-[#5b2d5b] wrap-break-word">{description}</div>

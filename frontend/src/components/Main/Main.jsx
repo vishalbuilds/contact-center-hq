@@ -1,54 +1,50 @@
 import { useState } from "react";
-import Cards from "./Cards/Cards.jsx";
-import CardDetailModel from "./CardDetailModal/CardDetailModal.jsx";
-import uiSchema from "../../uiSchemaTable.json"
-const data = [
-  { title: "Users", description: "Manage users" },
-  { title: "Orders", description: "View orders" },
-  { title: "Products", description: "Inventory list" },
-  { title: "Reports", description: "Analytics data" },
-];
+import TableCard from "./Table/TableCard.jsx";
+import RecordModal from "./Table/RecordModal.jsx";
+import HOOCard from "./HOO/HOOCard.jsx";
+import HOOModal from "./HOO/HOOModal.jsx";
+import schema from "../../schema.json";
+
+const componentMap = {
+  table: { Card: TableCard, Modal: RecordModal, propKey: "tableConfig" },
+  hoo:   { Card: HOOCard,   Modal: HOOModal,   propKey: "hooConfig"   },
+};
 
 export default function Main() {
-  const [cardDetail, setCardDetail] = useState(null);
+  const [selected, setSelected] = useState(null); // { config, Modal, propKey }
+
   return (
     <main className="flex-1 overflow-y-auto py-8 px-4 space-y-6 bg-[#e8e0e8]">
-      <section>
-        <h2 className="text-lg font-bold mb-3 pl-3 border-l-4 border-rose-900 text-[#5b2d5b]">
-          Section One
-        </h2>
-        <div className="grid grid-cols-10 gap-3">
-          {uiSchema.map((table) => (
-            <Cards key={table.id}
-              title={table.title}
-              description={table.description}
-              onClick={() => setCardDetail(table)} />
-          ))}
-        </div>
-      </section>
-      {cardDetail && (
-        <CardDetailModel
-          key={cardDetail.id}
-          card={cardDetail}
-          onClose={() => setCardDetail(null)}
+      {schema.map((section) => {
+        const { Card, Modal, propKey } = componentMap[section.schemaType] ?? {};
+        if (!Card) return null;
+        return (
+          <section key={section.schemaType}>
+            <h2 className="text-lg font-bold mb-3 pl-3 border-l-4 border-rose-900 text-[#5b2d5b]">
+              {section.title}
+            </h2>
+            <div className="grid grid-cols-10 gap-3">
+              {section.schema.map((item) => (
+                <Card
+                  key={item.id}
+                  title={item.title}
+                  description={item.description}
+                  onClick={() => setSelected({ config: item, Modal, propKey })}
+                />
+              ))}
+            </div>
+            <hr className="border-t border-[#b8a8b8] mt-6" />
+          </section>
+        );
+      })}
+
+      {selected && (
+        <selected.Modal
+          key={selected.config.id}
+          {...{ [selected.propKey]: selected.config }}
+          onClose={() => setSelected(null)}
         />
       )}
-
-      <hr className="border-t border-[#b8a8b8]" />
-
-
-      {/* Sample or more cases can be added based on requirement */}
-      <section>
-        <h2 className="text-lg font-bold mb-3 pl-3 border-l-4 border-rose-900 text-[#5b2d5b]">
-          Section Two
-        </h2>
-        <div className="grid grid-cols-10 gap-3">
-          {data.map((item, index) => (
-            <Cards key={index} title={item.title} description={item.description} />
-          ))}
-        </div>
-      </section>
-      <hr className="border-t border-[#b8a8b8]" />
     </main>
   );
 }

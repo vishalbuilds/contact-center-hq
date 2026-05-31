@@ -1,35 +1,25 @@
-version: '3.9'
-
 services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    ports:
+      - "8001:8000"
+    command: -jar DynamoDBLocal.jar -inMemory
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   app:
-    build:
-      context: .
-      args:
-        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID}
-        VITE_AZURE_TENANT_ID: ${VITE_AZURE_TENANT_ID}
-        VITE_API_SCOPE: ${VITE_API_SCOPE}
+    build: .
     ports:
       - "8000:8000"
     environment:
-      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
-      AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID}
       AWS_REGION: us-east-1
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      AWS_ACCESS_KEY_ID: dummy
-      AWS_SECRET_ACCESS_KEY: dummy
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      # boto3 >= 1.28 honours this env var as a global endpoint override
+      AWS_ENDPOINT_URL: http://dynamodb-local:8000
     depends_on:
       dynamodb-local:
         condition: service_healthy
-
-  dynamodb-local:
-    image: amazon/dynamodb-local:latest
-    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
-    ports:
-      - "8001:8000"
-    healthcheck:
-      # DynamoDB Local always returns HTTP 400 on /, which means it's up
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ -o /dev/null -w '%{http_code}' | grep -q '400' && exit 0 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
