@@ -338,6 +338,7 @@ storybook-static/
 .vscode/
 !.vscode/extensions.json
 !.vscode/settings.json
+.claude
 
 # JetBrains (PyCharm, WebStorm, etc.)
 .idea/
