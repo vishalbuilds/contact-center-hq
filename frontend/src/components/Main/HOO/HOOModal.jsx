@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ModalHeader from "./ModalHeader/ModalHeader.jsx";
+import ModalHeader from "../Components/ModalHeader.jsx";
 import HOOSearch from "./HOOSearch/HOOSearch.jsx";
 import HOOWeekView from "./HOOWeekView/HOOWeekView.jsx";
 import HOOForm from "./HOOForm/HOOForm.jsx";
@@ -38,6 +38,7 @@ export default function HOOModal({ hooConfig, onClose }) {
 
   return (
     <>
+      {/* out side click close modal */}
       <div
         className="fixed inset-0 bg-black/50 z-40"
         role="button"
@@ -46,16 +47,21 @@ export default function HOOModal({ hooConfig, onClose }) {
         onClick={onClose}
         onKeyDown={(e) => e.key === "Enter" && onClose()}
       />
-      <div className="fixed top-5 left-0 right-0 bottom-0 z-50 bg-[#e8e0e8] rounded-2xl shadow-2xl border-l-4 border-l-rose-900 flex flex-col">
+      <div id="hoo-modal" className="fixed top-5 left-0 right-0 bottom-0 z-50 bg-[#e8e0e8] rounded-2xl shadow-2xl border-l-4 border-l-rose-900 flex flex-col">
+        {/* HOO modal header*/}
         <ModalHeader
-          hooConfig={hooConfig}
-          view={view}
-          formMode={formMode}
-          selectedQueue={selectedQueue}
-          onBack={handleBack}
+          title={hooConfig.title}
+          description={hooConfig.description}
+          formMode={view === "form" ? formMode : undefined}
+          onBack={view === "form" || view === "week" ? handleBack : undefined}
           onClose={onClose}
+          badge={view === "week" && selectedQueue ? (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-purple-100 text-purple-700 border-purple-200">
+              {selectedQueue.queueName}
+            </span>
+          ) : null}
         />
-
+        {/* HOO search by queue name */}
         {view === "search" && (
           <HOOSearch
             hooConfig={hooConfig}
@@ -63,7 +69,7 @@ export default function HOOModal({ hooConfig, onClose }) {
             onCreateNew={handleCreateNew}
           />
         )}
-
+        {/* week view for schedule and exception */}
         {view === "week" && (
           <HOOWeekView
             key={selectedQueue?.queueArn}
@@ -71,7 +77,7 @@ export default function HOOModal({ hooConfig, onClose }) {
             selectedQueue={selectedQueue}
           />
         )}
-
+        {/* credit,edit and duplicate option */}
         {view === "form" && (
           <HOOForm
             hooConfig={hooConfig}

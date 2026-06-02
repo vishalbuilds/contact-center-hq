@@ -8,49 +8,57 @@ import DateField from "../../Fields/DateField.jsx";
 import TimeField from "../../Fields/TimeField.jsx";
 
 /*
-  RecordForm.jsx — the create / edit / duplicate form for generic DynamoDB records.
+  TableForm.jsx — the create / edit / duplicate form for generic DynamoDB table records.
 
-  Functionally identical to Table/TableForm/TableForm.jsx. Used in modals that
-  manage table records (Initial Config, User DID Mapping, Voicemail Access,
-  Outbound Mapping).
+  Used by: TableModal (view === "form") for all "table" type schema cards
+  (Initial Config, User DID Mapping, Voicemail Access, Outbound Mapping).
 
   FORM MODES
   ──────────
-  "create"    → fields start from schema.json defaultValues; POST to create
-  "duplicate" → fields pre-filled from existing record, pk cleared; POST to create
-  "edit"      → fields pre-filled from existing record; PUT to update
+  "create"    → all fields start from schema.json defaultValues.
+                Submit calls createTableRecord (POST).
+  "duplicate" → all fields pre-filled from an existing record, but the
+                primary key is cleared so a new unique record can be created.
+                An amber info banner explains this to the user.
+                Submit calls createTableRecord (POST).
+  "edit"      → all fields pre-filled from the existing record.
+                Submit calls updateTableRecord (PUT).
 
   FIELD RENDERING
   ───────────────
-  All fields in tableConfig.fields are rendered using the FIELD_COMPONENTS map
-  (field.type → React component). Unknown types fall back to StringField.
+  Every field in tableConfig.fields is rendered dynamically using the
+  FIELD_COMPONENTS map (field.type → component). Unknown types fall back to
+  StringField. All fields are shown (none are hidden in the table form).
 
   PRIMARY KEY ERROR
   ─────────────────
-  pkError is a separate error string shown below the pk field. It handles:
-    • Empty pk in create/duplicate mode
-    • 409 Conflict (record with this pk already exists)
-    • Other API failures
+  pkError is a separate error string (not part of the errors object) displayed
+  below the primary key field specifically. It handles:
+    • "PK is required" when creating with an empty key
+    • "A record with this key already exists" (409 Conflict from the API)
+    • "Failed to create/save record" for other API errors
 
   SUBMIT FLOW
   ───────────
-  1. Validate required fields → mark errors
-  2. Validate pk is non-empty in create/duplicate mode
-  3. Build body (top-level fields + nested payload for isPayload fields)
-  4. Call createTableRecord (POST) or updateTableRecord (PUT)
-  5. On success: flash green for 1.5 s → call onDone()
+  1. Validate all required fields → mark errors if empty
+  2. In create/duplicate mode: validate the primary key is non-empty
+  3. Build the body (top-level fields + nested payload object)
+  4. Call createTableRecord or updateTableRecord
+  5. On success: flash green ("Created!" / "Saved!") for 1.5 s, then onDone()
+  6. On 409 Conflict: show "record already exists" pkError
+  7. On other failures: show generic pkError
 
   PROPS
   ─────
-  tableConfig   — full config from schema.json (fields, tableName)
-  pkField       — the primary key field object
-  formMode      — "create" | "edit" | "duplicate"
-  initialValues — pre-filled values from the parent modal
-  onDone        — called after successful save; parent returns to search screen
+  tableConfig    — full config object from schema.json (fields, tableName)
+  pkField        — the primary key field object (from getPrimaryKeyField in TableModal)
+  formMode       — "create" | "edit" | "duplicate"
+  initialValues  — pre-filled values built by buildInitialFormValues in TableModal
+  onDone         — called after a successful submit; TableModal returns to "search"
 */
 
 /*
-  FIELD_COMPONENTS — maps field.type to the corresponding input component.
+  FIELD_COMPONENTS — maps each schema field.type to its React component.
   Fallback: StringField for any unknown type.
 */
 const FIELD_COMPONENTS = {
@@ -62,14 +70,14 @@ const FIELD_COMPONENTS = {
   time:     TimeField,
 };
 
-export default function RecordForm({ tableConfig, pkField, formMode, initialValues, onDone }) {
+export default function TableForm({ tableConfig, pkField, formMode, initialValues, onDone }) {
   /*
-    formValues  — current value for every field
-    errors      — { [fieldId]: true } for required fields that are empty
-    pkError     — string error shown below the pk field specifically
-    submitting  — true while API call is in flight
-    submitDone  — true after success (green button for 1.5 s)
-    doneTimerRef — setTimeout handle; cleared on unmount
+    formValues  — current value for every field in the form
+    errors      — { [fieldId]: true } for fields that failed required validation
+    pkError     — string error shown specifically below the primary key field
+    submitting  — true while the API call is in flight
+    submitDone  — true after success (turns button green, triggers auto-close)
+    doneTimerRef — setTimeout handle; cleared on unmount to avoid memory leaks
   */
   const [formValues, setFormValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
@@ -78,11 +86,12 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
   const [submitDone, setSubmitDone] = useState(false);
   const doneTimerRef = useRef(null);
 
-  /* Prevent memory leak if the component unmounts before the timer fires */
+  /* Clear the auto-close timer if the component unmounts before it fires */
   useEffect(() => () => { if (doneTimerRef.current) clearTimeout(doneTimerRef.current); }, []);
 
   /*
-    handleChange — updates formValues for the changed field, clears its error,
+    handleChange — called by each field component on every change.
+    Updates formValues for that field, clears its individual validation error,
     and clears the pkError if the user edits the primary key field.
   */
   const handleChange = (fieldId, value) => {
@@ -91,7 +100,9 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
     if (pkError && pkField && fieldId === pkField.id) setPkError("");
   };
 
-  /* handleSubmit — validates, builds the body, calls the API */
+  /*
+    handleSubmit — validates, builds the request body, calls the API.
+  */
   const handleSubmit = async () => {
     if (!pkField || submitting) return;
 
@@ -105,7 +116,7 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
     const pkId = pkField.id;
     const pkVal = formValues[pkId];
 
-    /* Step 2: pk must be non-empty when creating or duplicating */
+    /* Step 2: in create/duplicate mode the primary key must not be empty */
     if (formMode === "create" || formMode === "duplicate") {
       if (!pkVal || !String(pkVal).trim()) {
         setPkError(`${pkField.title ?? "Primary key"} is required.`);
@@ -115,8 +126,9 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
 
     /*
       Step 3: build the body.
-      isPayload=true fields go into a nested payload object.
-      Empty strings and undefined values are skipped (no blank DynamoDB attributes).
+      Fields with isPayload=true go into a nested payload object.
+      Empty strings and undefined values are skipped to avoid storing blank
+      DynamoDB attributes.
     */
     const body = {};
     const payloadObj = {};
@@ -133,13 +145,14 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
     try {
       if (formMode === "create" || formMode === "duplicate") {
         const res = await createTableRecord(tableConfig.tableName, pkId, body);
+        /* 409 Conflict — a record with this primary key already exists */
         if (res.status === 409) { setPkError(`A record with this ${pkField.title ?? "key"} already exists.`); return; }
         if (!res.ok) { setPkError("Failed to create record. Please try again."); return; }
       } else {
         const res = await updateTableRecord(tableConfig.tableName, pkId, pkVal, body);
         if (!res.ok) { setPkError("Failed to save record. Please try again."); return; }
       }
-      /* Step 5: success — flash green button, then call onDone after 1.5 s */
+      /* Step 5: success — flash green then call onDone after 1.5 s */
       setSubmitDone(true);
       doneTimerRef.current = setTimeout(onDone, 1500);
     } catch {
@@ -150,10 +163,10 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
   };
 
   /*
-    getSubmitLabel — button text for each state:
-      submitDone → "Saved!" / "Created!"
-      submitting → "Saving…" / "Creating…"
-      idle       → "Save" / "Create"
+    getSubmitLabel — returns the correct button text for the current state.
+    submitDone  → "Saved!" / "Created!"  (green flash state)
+    submitting  → "Saving…" / "Creating…"
+    idle        → "Save" / "Create"
   */
   const getSubmitLabel = () => {
     if (submitDone) return formMode === "edit" ? "Saved!" : "Created!";
@@ -162,15 +175,18 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
   };
 
   return (
-    /* Form container — fills remaining height; header is provided by the parent modal */
+    /*
+      Form container — fills all remaining height in the modal below the header.
+      flex-1 flex flex-col overflow-hidden → scrollable field area + fixed footer
+    */
     <div className="flex-1 flex flex-col overflow-hidden">
 
-      {/* Scrollable field area */}
+      {/* ── Scrollable field area ─────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
 
         {/*
-          Duplicate mode banner — reminds user to set a new unique pk.
-          bg-amber-50 border border-amber-200 → soft yellow warning colour
+          Duplicate mode banner — amber box reminding the user to enter a
+          new unique primary key value before creating the record.
         */}
         {formMode === "duplicate" && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
@@ -180,8 +196,14 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
         )}
 
         {/*
-          Field list — one input component per field in tableConfig.fields.
-          isPk=true → renders pkError below that specific field if set.
+          Field list — one component per field in tableConfig.fields.
+          flex flex-col gap-4 max-w-lg → vertical stack, 16px gaps, max 512px wide.
+
+          For each field:
+            Component = FIELD_COMPONENTS[field.type] ?? StringField
+            isPk = true when this field is the primary key field
+            pkError is shown below the pk field specifically (not via the
+            standard error prop which only shows "This field is required")
         */}
         <div className="flex flex-col gap-4 max-w-lg">
           {tableConfig.fields?.map((field) => {
@@ -195,7 +217,11 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
                   onChange={handleChange}
                   error={errors[field.id]}
                 />
-                {/* pkError — shown only below the primary key field */}
+                {/*
+                  pkError message — shown below the primary key field only.
+                  Handles "already exists" and other API errors for the PK.
+                  text-xs text-red-500 mt-1 → small red text, 4px top gap
+                */}
                 {isPk && pkError && (
                   <p className="text-xs text-red-500 mt-1">{pkError}</p>
                 )}
@@ -205,14 +231,15 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
         </div>
       </div>
 
-      {/* Fixed footer — Submit button on the right */}
+      {/* ── Fixed footer — Submit button ─────────────────────────── */}
       {/*
-        shrink-0 flex justify-end → button sits at the right edge
-        border-t border-[#c8b8c8] → thin mauve divider above the footer
+        shrink-0 flex justify-end → footer stays fixed; button sits on the right
+        border-t border-[#c8b8c8] → thin mauve dividing line above the footer
+        px-8 py-4 → padding around the button
 
-        Submit button:
+        Submit button states:
           Normal  → bg-rose-700 (dark rose)
-          Success → bg-emerald-600 (green flash)
+          Success → bg-emerald-600 (green flash for 1.5 s)
           Loading → disabled:opacity-60
       */}
       <div className="shrink-0 flex justify-end px-8 py-4 border-t border-[#c8b8c8]">

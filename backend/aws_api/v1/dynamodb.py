@@ -5,9 +5,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from decimal import Decimal
 from contextlib import contextmanager
 import logging
+import os
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
+
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
 
 def json_safe(obj: Any) -> Any:
@@ -19,49 +22,37 @@ def json_safe(obj: Any) -> Any:
         return [json_safe(i) for i in obj]
     return obj
 
-
-# ── Shared boto3 resource per region ──────────────────────────────────────
-_BOTO_CONFIG = Config(
+BOTO_CONFIG = Config(
     max_pool_connections=50,
     retries={"max_attempts": 3, "mode": "adaptive"},
     connect_timeout=5,
     read_timeout=10,
 )
-_resources: dict[str, Any] = {}
+
+DynamoDB_resource=boto3.resource("dynamodb", region_name=AWS_REGION, config=BOTO_CONFIG)
 
 
-def _get_resource(region: str):
-    if region not in _resources:
-        _resources[region] = boto3.resource(
-            "dynamodb", region_name=region, config=_BOTO_CONFIG
-        )
-    return _resources[region]
-# ──────────────────────────────────────────────────────────────────────────
-
-
-def ping(region: str) -> None:
-    _get_resource(region).meta.client.list_tables(Limit=1)
+def ping() -> None:
+    DynamoDB_resource.meta.client.list_tables(Limit=1)
 
 
 class DynamoDB:
     _cache: dict[tuple[str, str], "DynamoDB"] = {}
 
-    def __init__(self, table_name: str, region: str):
+    def __init__(self, table_name: str):
         self.table_name = table_name
-        self.region = region
-        self.table = _get_resource(region).Table(table_name)
+        self.table = DynamoDB_resource.Table(table_name)
 
     @classmethod
-    def get_instance(cls, table_name: str, region: str) -> "DynamoDB":
-        key = (table_name, region)
-        if key not in cls._cache:
-            cls._cache[key] = cls(table_name, region)
-        return cls._cache[key]
+    def get_instance(cls, table_name: str) -> "DynamoDB":
+        if table_name not in cls._cache:
+            cls._cache[table_name] = cls(table_name)
+        return cls._cache[table_name]
 
     @classmethod
     @contextmanager
-    def _session(cls, table_name: str, region: str):
-        yield cls.get_instance(table_name, region)
+    def _session(cls, table_name: str):
+        yield cls.get_instance(table_name)
 
     @staticmethod
     def _paginate(operation, kwargs: Dict[str, Any], limit: Optional[int]) -> List[Dict]:
@@ -86,8 +77,8 @@ class DynamoDB:
         return "SET " + ", ".join(parts), names, values
 
     @classmethod
-    def put(cls, table_name: str, region: str, item: Dict[str, Any], condition_expression: Optional[Any] = None) -> Dict:
-        with cls._session(table_name, region) as instance:
+    def put(cls, table_name: str,  item: Dict[str, Any], condition_expression: Optional[Any] = None) -> Dict:
+        with cls._session(table_name) as instance:
             try:
                 kwargs: Dict[str, Any] = {"Item": item, "ReturnValues": "ALL_OLD"}
                 if condition_expression is not None:
@@ -100,8 +91,8 @@ class DynamoDB:
                 raise
 
     @classmethod
-    def get(cls, table_name: str, region: str, key: Dict[str, Any], consistent_read: bool = False) -> Optional[Dict]:
-        with cls._session(table_name, region) as instance:
+    def get(cls, table_name: str,  key: Dict[str, Any], consistent_read: bool = False) -> Optional[Dict]:
+        with cls._session(table_name) as instance:
             try:
                 response = instance.table.get_item(Key=key, ConsistentRead=consistent_read)
                 item = response.get("Item")
@@ -118,14 +109,13 @@ class DynamoDB:
     def query(
         cls,
         table_name: str,
-        region: str,
         key_condition: Any,
         filter_expression: Optional[Any] = None,
         index_name: Optional[str] = None,
         limit: Optional[int] = None,
         scan_index_forward: bool = True,
     ) -> List[Dict]:
-        with cls._session(table_name, region) as instance:
+        with cls._session(table_name) as instance:
             try:
                 kwargs: Dict[str, Any] = {
                     "KeyConditionExpression": key_condition,
@@ -148,13 +138,13 @@ class DynamoDB:
     def scan(
         cls,
         table_name: str,
-        region: str,
+        
         filter_expression: Optional[Any] = None,
         limit: Optional[int] = None,
         projection_expression: Optional[str] = None,
         expression_attribute_names: Optional[Dict[str, str]] = None,
     ) -> List[Dict]:
-        with cls._session(table_name, region) as instance:
+        with cls._session(table_name) as instance:
             try:
                 kwargs: Dict[str, Any] = {}
                 if filter_expression is not None:
@@ -176,14 +166,14 @@ class DynamoDB:
     def update(
         cls,
         table_name: str,
-        region: str,
+        
         key: Dict[str, Any],
         updates: Dict[str, Any],
         condition_expression: Optional[Any] = None,
     ) -> Dict:
         if not updates:
             return {}
-        with cls._session(table_name, region) as instance:
+        with cls._session(table_name) as instance:
             try:
                 expr, names, values = cls._build_update_expression(updates)
                 kwargs: Dict[str, Any] = {
@@ -203,8 +193,8 @@ class DynamoDB:
                 raise
 
     @classmethod
-    def delete(cls, table_name: str, region: str, key: Dict[str, Any], condition_expression: Optional[Any] = None) -> Dict:
-        with cls._session(table_name, region) as instance:
+    def delete(cls, table_name: str,  key: Dict[str, Any], condition_expression: Optional[Any] = None) -> Dict:
+        with cls._session(table_name) as instance:
             try:
                 kwargs: Dict[str, Any] = {"Key": key, "ReturnValues": "ALL_OLD"}
                 if condition_expression is not None:

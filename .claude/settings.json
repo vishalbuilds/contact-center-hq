@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p \"e:/contact-center-hq/frontend/src/components/Header\" \"e:/contact-center-hq/frontend/src/components/Main\" \"e:/contact-center-hq/frontend/src/components/Footer\")"
+      "Bash(mkdir -p \"e:/contact-center-hq/frontend/src/components/Header\" \"e:/contact-center-hq/frontend/src/components/Main\" \"e:/contact-center-hq/frontend/src/components/Footer\")",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\contact-center-hq\\\\backend\" -Depth 2 | Where-Object { $_.Extension -eq \".py\" -or $_.PSIsContainer } | Select-Object FullName, PSIsContainer)",
+      "Bash(pip install *)",
+      "Bash(python3 -m pip install pytest httpx --quiet)",
+      "Bash(python3 -m pytest tests/ -v)",
+      "Bash(python3 -m pip install fastapi httpx pytest --quiet)",
+      "Bash(python3 -m pip install boto3 httpx2 --quiet)",
+      "Bash(npm install *)",
+      "Bash(npm test *)"
     ],
     "additionalDirectories": [
       "e:\\contact-center-hq\\frontend\\src\\components\\Header"
