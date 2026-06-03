@@ -4,63 +4,8 @@ import HOOForm from "../HOOForm/HOOForm.jsx";
 import { buildFormValues } from "../buildFormValues.js";
 import { getQueueRecords, deleteHooRecord } from "../../api/hoo.js";
 
-/*
-  HOOWeekView.jsx — the 7-column week grid for HOO records.
-
-  Used by: HOOModal (view === "week") after the user selects a queue.
-
-  TWO DISPLAY MODES (controlled by hooConfig.id === "schedule")
-  ─────────────────────────────────────────────────────────────
-  SCHEDULE mode (hooConfig.id === "schedule"):
-    Columns = Mon | Tue | Wed | Thu | Fri | Sat | Sun (fixed, no dates)
-    sortKey = "dayOfWeek" — records are grouped by day name string
-    No navigation arrows, no date picker panel
-
-  EXCEPTION mode (hooConfig.id !== "schedule", e.g. "exception"):
-    Columns = 7 actual calendar dates for the currently visible week
-    sortKey = "exceptionDate" — records are grouped by "MM/DD/YYYY" date string
-    Navigation arrows let the user move week by week (weekOffset state)
-    "Select Date" button opens a right-side panel with a date picker and
-    a summary list of all exception records visible in the current week
-
-  API CALL: getQueueRecords
-  ─────────────────────────
-  On mount (via useEffect) this component calls getQueueRecords() to fetch
-  all HOO records for selectedQueue.queueArn from DynamoDB.
-  key={selectedQueue?.queueArn} on the parent (HOOModal) forces a full
-  remount when a different queue is selected, so useEffect re-fires and
-  fresh records are loaded — no stale data from the previous queue.
-
-  INLINE FORM PANEL
-  ─────────────────
-  When the user clicks "+ Create", "Edit", or "Duplicate" on any DaySlot,
-  an InlineFormPanel slides in BELOW the 7-column grid (not a new screen).
-  The grid area shrinks to maxHeight 34% so both grid and form are visible.
-  The currently active day's DaySlot column gets isActive=true which adds
-  a rose border + ring glow to show which day is being edited.
-
-  PROPS
-  ─────
-  hooConfig     — full config object from schema.json (id, tableName, fields, keys)
-  selectedQueue — { queueArn, queueName } for the queue whose records are shown
-*/
-
-/*
-  DAYS_OF_WEEK — the fixed ordered list of day names used in schedule mode.
-  Used to render columns in the correct Mon→Sun order regardless of the
-  order records come back from the database.
-*/
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-/*
-  getWeekStart — returns the Monday of the week containing `date`.
-  JavaScript's getDay() returns 0 for Sunday and 1–6 for Mon–Sat.
-  The formula `day === 0 ? -6 : 1 - day` shifts any date back to Monday:
-    Monday (1)  → diff =  0  (no change)
-    Tuesday (2) → diff = -1
-    Sunday (0)  → diff = -6
-  setHours(0,0,0,0) strips the time component so comparisons are date-only.
-*/
 function getWeekStart(date) {
   const d = new Date(date);
   const day = d.getDay();
@@ -70,29 +15,18 @@ function getWeekStart(date) {
   return d;
 }
 
-/* addDays — returns a new Date that is `n` days after `date` */
 function addDays(date, n) {
   const d = new Date(date);
   d.setDate(d.getDate() + n);
   return d;
 }
 
-/*
-  toDateStr — converts a Date object to the MM/DD/YYYY format used in DynamoDB.
-  padStart(2,"0") ensures single-digit months/days get a leading zero
-  (e.g. June → "06", the 3rd → "03").
-*/
 function toDateStr(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${m}/${d}/${date.getFullYear()}`;
 }
 
-/*
-  formatWeekLabel — returns a readable week range string for the navigation bar.
-  Example: "Jun 2 – Jun 8, 2025"
-  addDays(weekStart, 6) gives the Sunday that ends the week.
-*/
 function formatWeekLabel(weekStart) {
   const weekEnd = addDays(weekStart, 6);
   const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -100,29 +34,12 @@ function formatWeekLabel(weekStart) {
 }
 
 export default function HOOWeekView({ hooConfig, selectedQueue }) {
-  /*
-    isSchedule — true when viewing the schedule table, false for exceptions.
-    slotKey    — the sort key column name used to group records into columns:
-                  schedule → "dayOfWeek"  (e.g. "Monday")
-                  exception → "exceptionDate" (e.g. "06/03/2025")
-  */
   const isSchedule = hooConfig.id === "schedule";
   const slotKey = hooConfig.sortKey;
 
-  /*
-    records              — all HOO records for this queue from DynamoDB
-    fetchLoading         — true while the initial API call is in flight
-    weekOffset           — how many weeks forward/back from today (0 = current week)
-    inlineForm           — null when no form is open; object when open:
-                             { mode: "create"|"edit"|"duplicate", label, initialValues }
-    showPanel            — true when the right-side "Select Date" panel is open
-    panelDate            — the value of the date input inside the panel (YYYY-MM-DD)
-    confirmDeleteSortKey — the sortKey of the record currently awaiting delete
-                           confirmation in the right panel (null = no confirm showing)
-    deleteError          — string error message if a delete API call fails
-  */
   const [records, setRecords] = useState([]);
   const [fetchLoading, setFetchLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [inlineForm, setInlineForm] = useState(null);
   const [showPanel, setShowPanel] = useState(false);
@@ -132,27 +49,16 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
 
   const queueArn = selectedQueue?.queueArn;
 
-  /*
-    Initial data fetch — runs once when the component mounts.
-    key={selectedQueue?.queueArn} on HOOModal forces a fresh mount each time
-    a new queue is selected, so this effect always loads the right queue's data.
-    getQueueRecords fetches all records for this queue from DynamoDB.
-    setFetchLoading(false) in the finally block hides the loading spinner
-    whether the fetch succeeded or failed.
-  */
   useEffect(() => {
     if (!queueArn) return;
+    // fetchLoading/fetchError are already at their initial values on mount
+    // (component is keyed on queueArn so it remounts on queue change).
     getQueueRecords(hooConfig.tableName, queueArn, hooConfig.partitionKey)
       .then(setRecords)
+      .catch(() => setFetchError("Failed to load records — check your connection and try again."))
       .finally(() => setFetchLoading(false));
   }, [queueArn, hooConfig]);
 
-  /*
-    openEdit — opens the inline form panel in edit mode for an existing record.
-    Sets inlineForm with mode="edit", the slotKey value as the label (used to
-    show which day/date is being edited in the panel header and to highlight the
-    correct DaySlot column with isActive=true), and pre-filled field values.
-  */
   const openEdit = (record) => {
     setInlineForm({
       mode: "edit",
@@ -161,12 +67,6 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     });
   };
 
-  /*
-    openDuplicate — opens the inline form in duplicate mode.
-    Copies all field values from the record, then clears the partition key,
-    sort key, and GSI key back to their defaults so the user must supply new
-    unique key values before creating. This prevents a 409 conflict.
-  */
   const openDuplicate = (record) => {
     const vals = buildFormValues(hooConfig, record);
     const clearIds = [hooConfig.partitionKey, hooConfig.GSIKey, hooConfig.sortKey].filter(Boolean);
@@ -182,12 +82,6 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     });
   };
 
-  /*
-    openCreate — opens the inline form in create mode for a specific day/date.
-    Pre-fills the partition key (queueArn) and GSI key (queueName) from the
-    currently selected queue, and sets the sort key to the clicked slot value
-    (e.g. "Monday" or "06/25/2025") so the user doesn't have to type those.
-  */
   const openCreate = (slotValue) => {
     const vals = buildFormValues(hooConfig, null);
     vals[hooConfig.partitionKey] = selectedQueue?.queueArn ?? "";
@@ -196,25 +90,12 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     setInlineForm({ mode: "create", label: slotValue, initialValues: vals });
   };
 
-  /*
-    handleFormDone — called by HOOForm after a successful create/edit.
-    Re-fetches all records from the API to pick up the change, then closes
-    the inline form panel. This ensures the grid always shows fresh data.
-  */
   const handleFormDone = async () => {
     const refreshed = await getQueueRecords(hooConfig.tableName, selectedQueue.queueArn, hooConfig.partitionKey);
     setRecords(refreshed);
     setInlineForm(null);
   };
 
-  /*
-    handleDelete — called when the user confirms deletion on a DaySlot card
-    or in the right-side panel's record list.
-    1. Calls deleteHooRecord API (throws on failure)
-    2. If the deleted record's form was open, closes the inline form
-    3. Re-fetches records to update the grid
-    4. On failure: sets deleteError which shows a red banner
-  */
   const handleDelete = async (record) => {
     const recQueueArn = record[hooConfig.partitionKey];
     const sortValue = record[slotKey];
@@ -222,19 +103,20 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     try {
       await deleteHooRecord(hooConfig.tableName, recQueueArn, sortValue, hooConfig.partitionKey, hooConfig.sortKey);
       if (inlineForm?.label === sortValue) setInlineForm(null);
-      const refreshed = await getQueueRecords(hooConfig.tableName, selectedQueue.queueArn, hooConfig.partitionKey);
-      setRecords(refreshed);
+      // Optimistic removal — update local state immediately so the UI responds
+      // even if the follow-up refresh fails (e.g. transient network issue).
+      setRecords((prev) =>
+        prev.filter((r) => r[slotKey] !== sortValue || r[hooConfig.partitionKey] !== recQueueArn)
+      );
+      // Best-effort refresh to pick up any concurrent changes.
+      getQueueRecords(hooConfig.tableName, selectedQueue.queueArn, hooConfig.partitionKey)
+        .then(setRecords)
+        .catch(() => {}); // optimistic removal already applied — ignore refresh failures
     } catch {
       setDeleteError("Delete failed — please try again.");
     }
   };
 
-  /*
-    handlePanelDateChange — called when the user picks a date in the right panel.
-    Converts the picked date to a weekOffset so the grid navigates to that week.
-    Formula: (weekStart of target − weekStart of today) / milliseconds in 7 days
-    Math.round handles DST changes which make some weeks ≠ exactly 7×24×60×60×1000 ms.
-  */
   const handlePanelDateChange = (isoDate) => {
     setPanelDate(isoDate);
     if (!isoDate) return;
@@ -253,7 +135,15 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     );
   }
 
-  // ── Schedule view ─────────────────────────────────────────────────────────
+  if (fetchError) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-8">
+        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          {fetchError}
+        </div>
+      </div>
+    );
+  }
 
   if (isSchedule) {
     const byDay = {};
@@ -291,6 +181,7 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
                 onCreate={() => openCreate(day)}
                 onDelete={handleDelete}
                 onDuplicate={openDuplicate}
+                partitionKey={hooConfig.partitionKey}
               />
             ))}
           </div>
@@ -307,8 +198,6 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
       </div>
     );
   }
-
-  // ── Exception view ────────────────────────────────────────────────────────
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -333,7 +222,6 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
         className="flex flex-row overflow-hidden"
         style={{ flex: inlineForm ? "0 0 auto" : "1 1 auto", maxHeight: inlineForm ? "34%" : undefined }}
       >
-        {/* Grid */}
         <div className={`flex-1 min-w-0 overflow-y-auto py-3 ${showPanel ? "px-4" : "px-8"}`}>
           <div className="flex items-center gap-3 mb-3">
             <button type="button" onClick={() => setWeekOffset((w) => w - 1)}
@@ -386,13 +274,13 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
                   onCreate={() => openCreate(dateStr)}
                   onDelete={handleDelete}
                   onDuplicate={openDuplicate}
+                  partitionKey={hooConfig.partitionKey}
                 />
               );
             })}
           </div>
         </div>
 
-        {/* Right panel */}
         {showPanel && (
           <div className="w-80 shrink-0 border-l border-[#d4c4d4] bg-[#faf7fa] flex flex-col overflow-hidden">
             <div className="shrink-0 px-4 py-4 border-b border-[#e4d4e4] bg-white">
@@ -420,7 +308,7 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
                 visibleWeekRecords.map((record) => {
                   const p = record.payload ?? {};
                   return (
-                    <div key={record[slotKey]} className="bg-white rounded-xl border border-[#e4d4e4] overflow-hidden">
+                    <div key={`${record[hooConfig.partitionKey]}-${record[slotKey]}`} className="bg-white rounded-xl border border-[#e4d4e4] overflow-hidden">
                       <div className="px-3 py-2 bg-[#f5f0f5] border-b border-[#e4d4e4] flex items-center justify-between">
                         <span className="text-xs font-bold text-[#5b2d5b]">
                           {record._dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
@@ -494,52 +382,10 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
   );
 }
 
-/*
-  InlineFormPanel — the form panel that slides in below the 7-column grid.
-
-  Rendered inside HOOWeekView when inlineForm state is not null.
-  It does NOT navigate to a new screen — it appears within the same view so
-  the user can still see the week grid above (shrunk to max 34% height).
-
-  STRUCTURE
-  ─────────
-  • A header bar with the mode label ("Edit — Monday", "New Record — Jun 5")
-    and a ✕ close button that sets inlineForm=null
-  • The full HOOForm component below the header
-
-  key={inlineForm.label} on the parent InlineFormPanel (set in HOOWeekView)
-  forces a fresh remount when the user switches from editing one day to another,
-  clearing all form state (errors, dirty check, etc.) automatically.
-
-  PROPS
-  ─────
-  inlineForm  — { mode, label, initialValues } from HOOWeekView state
-  hooConfig   — passed straight through to HOOForm
-  onClose     — sets inlineForm=null, collapses the panel
-  onDone      — called after successful save; refreshes records and collapses panel
-*/
 function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
   return (
-    /*
-      Panel wrapper — sits below the grid in the flex column layout.
-      flex-1 flex flex-col overflow-hidden → fills remaining height
-      border-t-2 border-[#c8b8c8]         → thick mauve top border visually
-                                             separates the panel from the grid
-      bg-[#ede5ed]                         → slightly darker lavender than the
-                                             modal background to differentiate it
-    */
     <div className="flex-1 flex flex-col overflow-hidden border-t-2 border-[#c8b8c8] bg-[#ede5ed]">
-
-      {/*
-        Panel header — shows the mode + day label and the close button.
-        shrink-0 → stays fixed height; HOOForm below scrolls if needed
-        border-b border-[#d4c4d4] → thin mauve bottom divider
-      */}
       <div className="shrink-0 flex items-center justify-between px-8 py-3 border-b border-[#d4c4d4]">
-        {/*
-          Mode label — tells the user what they are doing and for which day/date.
-          Examples: "Edit — Monday", "Duplicate — Jun 5", "New Record — Friday"
-        */}
         <span className="text-sm font-semibold text-[#3b1a3b]">
           {inlineForm.mode === "edit"
             ? `Edit — ${inlineForm.label}`
@@ -547,13 +393,6 @@ function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
               ? `Duplicate — ${inlineForm.label}`
               : `New Record — ${inlineForm.label}`}
         </span>
-
-        {/*
-          Close (✕) button — collapses the form panel back to the full-height grid.
-          p-1.5 rounded-lg → small round button area
-          hover:bg-[#d4c8d4] → light mauve hover background
-          aria-label="Close" → accessible label for screen readers
-        */}
         <button type="button" onClick={onClose}
           className="p-1.5 rounded-lg text-[#8b6b8b] hover:bg-[#d4c8d4] transition-colors cursor-pointer" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -561,13 +400,6 @@ function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
           </svg>
         </button>
       </div>
-
-      {/*
-        HOOForm — the actual form component rendered inside this panel.
-        Receives the same props it would get in full-screen form mode.
-        onCancel={onClose} → Cancel collapses the panel (same as the ✕ button)
-        onDone={onDone}    → success refreshes the grid records
-      */}
       <HOOForm
         hooConfig={hooConfig}
         formMode={inlineForm.mode}

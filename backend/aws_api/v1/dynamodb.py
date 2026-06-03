@@ -1,16 +1,13 @@
-import boto3
-from botocore.config import Config
 from botocore.exceptions import ClientError
 from typing import Any, Dict, List, Optional, Tuple
 from decimal import Decimal
 from contextlib import contextmanager
 import logging
-import os
+
+from aws_api.v1.aws_clients import dynamo_resource as DynamoDB_resource
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
-
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 
 
 def json_safe(obj: Any) -> Any:
@@ -22,22 +19,13 @@ def json_safe(obj: Any) -> Any:
         return [json_safe(i) for i in obj]
     return obj
 
-BOTO_CONFIG = Config(
-    max_pool_connections=50,
-    retries={"max_attempts": 3, "mode": "adaptive"},
-    connect_timeout=5,
-    read_timeout=10,
-)
-
-DynamoDB_resource=boto3.resource("dynamodb", region_name=AWS_REGION, config=BOTO_CONFIG)
-
 
 def ping() -> None:
     DynamoDB_resource.meta.client.list_tables(Limit=1)
 
 
 class DynamoDB:
-    _cache: dict[tuple[str, str], "DynamoDB"] = {}
+    _cache: dict[str, "DynamoDB"] = {}
 
     def __init__(self, table_name: str):
         self.table_name = table_name

@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+@theme {
+  --z-60: 60;
+  --z-70: 70;
+}

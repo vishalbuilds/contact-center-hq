@@ -9,7 +9,9 @@
       "Bash(python3 -m pip install fastapi httpx pytest --quiet)",
       "Bash(python3 -m pip install boto3 httpx2 --quiet)",
       "Bash(npm install *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(Get-ChildItem -Path \"e:\\\\contact-center-hq\" -Force)",
+      "Bash(Select-Object Name, FullName)"
     ],
     "additionalDirectories": [
       "e:\\contact-center-hq\\frontend\\src\\components\\Header"

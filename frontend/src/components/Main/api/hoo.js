@@ -1,74 +1,22 @@
-/*
-  api/hoo.js — all network calls for Hours of Operation (HOO) data.
-
-  Every function talks to the FastAPI backend at /api/v1/hoo/...
-  All parameters (table name, key names, key values) are sent as HTTP
-  headers so that values containing special characters (slashes, colons,
-  ARNs, etc.) never interfere with URL routing.
-
-  HEADERS USED
-  ────────────
-  x-table     →  DynamoDB table name            (e.g. "CCaaS-queue-schedule-config")
-  x-pk        →  partition key column name      (e.g. "queueArn")
-  x-pk-value  →  partition key value            (e.g. the queue ARN string)
-  x-sk        →  sort key column name           (e.g. "dayOfWeek")
-  x-sk-value  →  sort key value                 (e.g. "Monday", "06/25/2025")
-  x-gsi-key   →  GSI key column name            (e.g. "queueName")
-
-  HOW THE DATA IS STRUCTURED
-  ──────────────────────────
-  Each HOO record in DynamoDB looks like:
-    {
-      queueArn:  "arn:aws:connect:...",   ← partition key
-      dayOfWeek: "Monday",                ← sort key
-      queueName: "Support Queue",         ← GSI key
-      payload: {                          ← nested object for all other fields
-        startTime: "09:00",
-        endTime:   "17:00",
-        timezone:  "America/New_York",
-        vmMenu:    false,
-        offerVm:   false,
-      }
-    }
-*/
-
 const BASE = "/api/v1/hoo";
 
-/*
-  searchQueues — finds queues whose name matches a search string.
-
-  Hits GET /api/v1/hoo/by-queue?queue_name=<searchTerm>
-  Returns an array of { queueArn, queueName } objects, or [] on failure.
-*/
 export async function searchQueues(tableName, queueName, pk, gsiKey) {
   const res = await fetch(
     `${BASE}/by-queue?${new URLSearchParams({ queue_name: queueName })}`,
     { headers: { "x-table": tableName, "x-pk": pk, "x-gsi-key": gsiKey } },
   );
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Search failed: ${res.status}`);
   return (await res.json()).items ?? [];
 }
 
-/*
-  getQueueRecords — loads all HOO records for one specific queue.
-
-  Hits GET /api/v1/hoo/records
-  Returns an array of full record objects, or [] on failure.
-*/
 export async function getQueueRecords(tableName, queueArn, pk) {
   const res = await fetch(`${BASE}/records`, {
     headers: { "x-table": tableName, "x-pk": pk, "x-pk-value": queueArn },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Failed to load records: ${res.status}`);
   return (await res.json()).items ?? [];
 }
 
-/*
-  createHooRecord — saves a brand-new HOO record to DynamoDB.
-
-  Hits POST /api/v1/hoo/record with the full record as JSON body.
-  Returns the raw fetch Response so the caller can check res.status.
-*/
 export async function createHooRecord(tableName, body, pkId, skId) {
   return fetch(`${BASE}/record`, {
     method: "POST",
@@ -77,12 +25,6 @@ export async function createHooRecord(tableName, body, pkId, skId) {
   });
 }
 
-/*
-  updateHooRecord — overwrites an existing HOO record in DynamoDB.
-
-  Hits PUT /api/v1/hoo/record with the updated record as the JSON body.
-  Returns the raw fetch Response.
-*/
 export async function updateHooRecord(tableName, pkVal, skVal, body, pkId, skId) {
   return fetch(`${BASE}/record`, {
     method: "PUT",
@@ -98,12 +40,60 @@ export async function updateHooRecord(tableName, pkVal, skVal, body, pkId, skId)
   });
 }
 
-/*
-  deleteHooRecord — permanently removes a HOO record from DynamoDB.
+// ── Batch API calls ──────────────────────────────────────────────────────────
+// Each sends one HTTP request; backend processes all rows in parallel and
+// returns a full report in a single response.
 
-  Hits DELETE /api/v1/hoo/record
-  Throws an Error if the server returns a non-OK status.
-*/
+export async function batchGetHoo(tableName, pk, gsiKey, sk, queueNames) {
+  const res = await fetch(`${BASE}/batch-get`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-table": tableName,
+      "x-pk": pk,
+      "x-gsi-key": gsiKey,
+      "x-sk": sk,
+    },
+    body: JSON.stringify({ queueNames }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-get failed: ${res.status}`);
+  return res.json();
+}
+
+export async function batchCreateHoo(tableName, pk, sk, rows) {
+  const res = await fetch(`${BASE}/batch-create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk, "x-sk": sk },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-create failed: ${res.status}`);
+  return res.json();
+}
+
+export async function batchUpdateHoo(tableName, pk, sk, rows) {
+  const res = await fetch(`${BASE}/batch-update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk, "x-sk": sk },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-update failed: ${res.status}`);
+  return res.json();
+}
+
+export async function upsertHooRecord(tableName, pkId, skId, data, validateConnect = false) {
+  return fetch(`${BASE}/upsert`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-table": tableName,
+      "x-pk": pkId,
+      "x-sk": skId,
+      "x-validate-connect": validateConnect ? "true" : "false",
+    },
+    body: JSON.stringify(data),
+  });
+}
+
 export async function deleteHooRecord(tableName, queueArn, sortValue, pkId, skId) {
   const res = await fetch(`${BASE}/record`, {
     method: "DELETE",

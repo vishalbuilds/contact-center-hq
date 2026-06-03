@@ -1,0 +1,11 @@
+prod:
+  instance_id: "REPLACE_WITH_PROD_INSTANCE_ID"
+  region: "us-east-1"
+
+stage:
+  instance_id: "REPLACE_WITH_STAGE_INSTANCE_ID"
+  region: "us-east-1"
+
+dev:
+  instance_id: "REPLACE_WITH_DEV_INSTANCE_ID"
+  region: "us-east-1"
