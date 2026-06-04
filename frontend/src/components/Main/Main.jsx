@@ -3,6 +3,7 @@ import Card from "./Components/Card.jsx";
 import TableModal from "./Table/TableModal.jsx";
 import HOOModal from "./HOO/HOOModal.jsx";
 import schema from "../../schema.json";
+import { useUser } from "../../context/UserContext.jsx";
 
 /*
   componentMap — the routing table that connects a schema type to its modal.
@@ -20,22 +21,12 @@ import schema from "../../schema.json";
 */
 const componentMap = {
   table: { Modal: TableModal, propKey: "tableConfig" },
-  hoo:   { Modal: HOOModal,   propKey: "hooConfig"   },
+  hoo: { Modal: HOOModal, propKey: "hooConfig" },
 };
 
 export default function Main() {
-  /*
-    selected — tracks which card the user clicked.
-    Starts as null (no modal open).
-    When a Card is clicked it becomes an object:
-      {
-        config:   the full item object from schema.json (tableName, fields, etc.)
-        Modal:    the React component to render (TableModal or HOOModal)
-        propKey:  the prop name to pass config under ("tableConfig" or "hooConfig")
-      }
-    Setting it back to null closes the modal.
-  */
   const [selected, setSelected] = useState(null);
+  const { user, loading, authError, canRead } = useUser();
 
   return (
     /*
@@ -49,33 +40,39 @@ export default function Main() {
         bg-[#e8e0e8]    → the soft lavender/mauve page background colour
     */
     <main className="flex-1 overflow-y-auto py-8 px-4 space-y-6 bg-[#e8e0e8]">
+      {loading && (
+        <div className="flex items-center justify-center py-24 text-[#8b6b8b] text-sm">
+          Loading…
+        </div>
+      )}
 
-      {/*
-        schema.map() — loops over every top-level group in schema.json.
-        schema.json currently has two groups:
-          1. schemaType "table"  →  "Voice Channel Table Configuration"
-          2. schemaType "hoo"    →  "Hours Of Operation Configuration"
+      {!loading && !user && (
+        <div className="flex items-center justify-center py-24 text-red-600 text-sm text-center px-4">
+          {(() => {
+            if (authError?.status === 403)
+              return "Your account is not assigned to a recognised group. Contact your administrator to get access.";
+            if (authError?.status === 401)
+              return "Your session has expired. Please refresh the page to sign in again.";
+            return "Unable to load your profile. Please refresh the page or contact your administrator.";
+          })()}
+        </div>
+      )}
 
-        Each group produces one <section> block on the page.
+      {!loading &&
+        user &&
+        schema.map((section) => {
+          const { Modal, propKey } = componentMap[section.schemaType] ?? {};
+          if (!Modal) return null;
+          if (!canRead(section.schemaType)) return null;
 
-        componentMap lookup:
-          If the schemaType is not in componentMap (i.e. unknown type),
-          Modal and propKey will be undefined and the section is skipped
-          with `return null` — a safety guard against bad schema entries.
-      */}
-      {schema.map((section) => {
-        const { Modal, propKey } = componentMap[section.schemaType] ?? {};
-        if (!Modal) return null;
-
-        return (
-          /*
+          return (
+            /*
             <section> — one visual group on the page (e.g. all Table cards,
             or all HOO cards). The key is the schemaType string so React can
             track each group efficiently when the list re-renders.
           */
-          <section key={section.schemaType}>
-
-            {/*
+            <section key={section.schemaType}>
+              {/*
               Section heading — the bold title displayed above the card grid.
               Comes from section.title in schema.json, e.g.
               "Voice Channel Table Configuration".
@@ -88,11 +85,11 @@ export default function Main() {
                 border-rose-900     → dark rose/crimson colour for that stripe
                 text-[#5b2d5b]      → medium purple text colour
             */}
-            <h2 className="text-lg font-bold mb-3 pl-3 border-l-4 border-rose-900 text-[#5b2d5b]">
-              {section.title}
-            </h2>
+              <h2 className="text-lg font-bold mb-3 pl-3 border-l-4 border-rose-900 text-[#5b2d5b]">
+                {section.title}
+              </h2>
 
-            {/*
+              {/*
               Card grid — lays out all the clickable cards for this section.
               Each item in section.schema becomes one Card.
 
@@ -100,9 +97,8 @@ export default function Main() {
                 grid grid-cols-10   → 10 equal columns side by side
                 gap-3               → 12px gap between every card
             */}
-            <div className="grid grid-cols-10 gap-3">
-
-              {/*
+              <div className="grid grid-cols-10 gap-3">
+                {/*
                 section.schema.map() — loops over every item inside this group.
                 For "table" this gives: Initial Config, User DID Mapping,
                 Voicemail Access, Outbound Mapping.
@@ -133,23 +129,30 @@ export default function Main() {
                                    deleteHooRecord() is called from HOOWeekView
                                    when the user confirms a delete.
               */}
-              {section.schema.map((item) => (
-                <Card
-                  key={item.id}
-                  title={item.title}
-                  description={item.description}
-                  /*
+                {section.schema.map((item) => (
+                  <Card
+                    key={item.id}
+                    title={item.title}
+                    description={item.description}
+                    /*
                     onClick — when the user clicks this card, setSelected stores
                     the full item config, the right Modal component, and the
                     correct prop name. This triggers a re-render and the modal
                     appears on screen (see the modal block at the bottom).
                   */
-                  onClick={() => setSelected({ config: item, Modal, propKey })}
-                />
-              ))}
-            </div>
+                    onClick={() =>
+                      setSelected({
+                        config: item,
+                        Modal,
+                        propKey,
+                        resourceType: section.schemaType,
+                      })
+                    }
+                  />
+                ))}
+              </div>
 
-            {/*
+              {/*
               Divider line — a thin horizontal rule rendered below each section's
               card grid to visually separate it from the next section.
 
@@ -158,10 +161,10 @@ export default function Main() {
                 border-[#b8a8b8]    → muted mauve/grey colour
                 mt-6                → 24px space above the line
             */}
-            <hr className="border-t border-[#b8a8b8] mt-6" />
-          </section>
-        );
-      })}
+              <hr className="border-t border-[#b8a8b8] mt-6" />
+            </section>
+          );
+        })}
 
       {/*
         Modal renderer — sits outside the section loop so it always renders
@@ -190,6 +193,7 @@ export default function Main() {
         <selected.Modal
           key={selected.config.id}
           {...{ [selected.propKey]: selected.config }}
+          resourceType={selected.resourceType}
           onClose={() => setSelected(null)}
         />
       )}

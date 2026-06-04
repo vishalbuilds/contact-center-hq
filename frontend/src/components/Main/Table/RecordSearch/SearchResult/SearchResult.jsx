@@ -36,7 +36,14 @@ import { useState, useRef, useEffect } from "react";
   onDelete     — called with pkValue when "Yes, Delete" is confirmed
   busy         — boolean; true shows a spinner and disables the options button
 */
-export default function SearchResult({ pkTitle, pkValue, onOpen, onDuplicate, onDelete, busy }) {
+export default function SearchResult({
+  pkTitle,
+  pkValue,
+  onOpen,
+  onDuplicate,
+  onDelete,
+  busy,
+}) {
   /*
     menuOpen         — true when the ⋮ dropdown is visible
     confirmingDelete — true when the delete confirmation panel is showing
@@ -68,18 +75,20 @@ export default function SearchResult({ pkTitle, pkValue, onOpen, onDuplicate, on
       hover:border-rose-300 → border softly highlights on hover
     */
     <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-[#d4c4d4] hover:border-rose-300 transition-colors">
-
       {/* Primary key field name + value */}
       <div>
         {/* Field name — tiny all-caps muted label above the value */}
-        <p className="text-xs text-[#8b6b8b] uppercase tracking-wide leading-tight">{pkTitle}</p>
+        <p className="text-xs text-[#8b6b8b] uppercase tracking-wide leading-tight">
+          {pkTitle}
+        </p>
         {/* Primary key value — monospace for readability of IDs/numbers */}
-        <p className="font-mono text-sm font-semibold text-[#3b1a3b]">{pkValue}</p>
+        <p className="font-mono text-sm font-semibold text-[#3b1a3b]">
+          {pkValue}
+        </p>
       </div>
 
       {/* ⋮ button + dropdown — positioned relative to this wrapper */}
       <div className="relative" ref={menuRef}>
-
         {/*
           Options button — ⋮ icon normally; spinner when busy.
           Disabled when busy=true to prevent actions during fetch/delete.
@@ -97,7 +106,16 @@ export default function SearchResult({ pkTitle, pkValue, onOpen, onDuplicate, on
         >
           {/* animate-spin spins the icon while busy; three dots ⋮ when not busy */}
           {busy ? (
-            <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg
+              className="animate-spin"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
               <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
             </svg>
           ) : (
@@ -119,14 +137,20 @@ export default function SearchResult({ pkTitle, pkValue, onOpen, onDuplicate, on
           <div className="absolute right-0 top-full mt-1 bg-white border border-[#d4c4d4] rounded-xl shadow-lg z-20 py-1 min-w-35 overflow-hidden">
             <button
               type="button"
-              onClick={() => { setMenuOpen(false); onOpen(pkValue); }}
+              onClick={() => {
+                setMenuOpen(false);
+                onOpen(pkValue);
+              }}
               className="w-full text-left px-4 py-2.5 text-sm text-[#3b1a3b] hover:bg-[#f5f0f5] transition-colors cursor-pointer"
             >
               Open
             </button>
             <button
               type="button"
-              onClick={() => { setMenuOpen(false); onDuplicate(pkValue); }}
+              onClick={() => {
+                setMenuOpen(false);
+                onDuplicate(pkValue);
+              }}
               className="w-full text-left px-4 py-2.5 text-sm text-[#3b1a3b] hover:bg-[#f5f0f5] transition-colors cursor-pointer"
             >
               Duplicate
@@ -150,11 +174,16 @@ export default function SearchResult({ pkTitle, pkValue, onOpen, onDuplicate, on
         */}
         {menuOpen && confirmingDelete && (
           <div className="absolute right-0 top-full mt-1 bg-white border border-red-200 rounded-xl shadow-lg z-20 p-3 min-w-45">
-            <p className="text-sm font-semibold text-[#3b1a3b] mb-3">Delete this record?</p>
+            <p className="text-sm font-semibold text-[#3b1a3b] mb-3">
+              Delete this record?
+            </p>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setMenuOpen(false); onDelete(pkValue); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete(pkValue);
+                }}
                 className="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 active:scale-95 transition-all cursor-pointer"
               >
                 Yes, Delete

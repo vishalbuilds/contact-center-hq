@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useUser } from "../../../../context/UserContext.jsx";
 import StringField from "../../Fields/StringField.jsx";
 import DropdownField from "../../Fields/DropdownField.jsx";
 import BooleanField from "../../Fields/BooleanField.jsx";
@@ -6,6 +7,7 @@ import IntegerField from "../../Fields/IntegerField.jsx";
 import DateField from "../../Fields/DateField.jsx";
 import TimeField from "../../Fields/TimeField.jsx";
 import { createHooRecord, updateHooRecord } from "../../api/hoo.js";
+import { localToEST } from "../../../../utils/timezone.js";
 
 /*
   HOOForm.jsx — the create / edit / duplicate form for HOO records.
@@ -77,15 +79,23 @@ import { createHooRecord, updateHooRecord } from "../../api/hoo.js";
   Any unknown type falls back to StringField (plain text input).
 */
 const FIELD_COMPONENTS = {
-  string:   StringField,
+  string: StringField,
   dropdown: DropdownField,
-  boolean:  BooleanField,
-  integer:  IntegerField,
-  date:     DateField,
-  time:     TimeField,
+  boolean: BooleanField,
+  integer: IntegerField,
+  date: DateField,
+  time: TimeField,
 };
 
-export default function HOOForm({ hooConfig, formMode, initialValues, onDone, onCancel }) {
+export default function HOOForm({
+  hooConfig,
+  resourceType,
+  formMode,
+  initialValues,
+  onDone,
+  onCancel,
+}) {
+  const { canWrite } = useUser();
   /*
     formValues     — the current value of every field; starts from initialValues
     errors         — { [fieldId]: true } for fields that failed validation
@@ -105,7 +115,12 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
   const doneTimerRef = useRef(null);
 
   /* Cleanup: cancel the auto-close timer if the component unmounts early */
-  useEffect(() => () => { if (doneTimerRef.current) clearTimeout(doneTimerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+    },
+    [],
+  );
 
   /* Shorthand for the key field IDs used throughout this component */
   const pkId = hooConfig.partitionKey;
@@ -135,38 +150,47 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
     If the form has unsaved changes: shows the amber "Discard?" banner instead.
   */
   const handleCancel = () => {
-    if (!isDirty) { onCancel?.(); return; }
+    if (!isDirty) {
+      onCancel?.();
+      return;
+    }
     setConfirmDiscard(true);
   };
 
   /*
     handleSubmit — validates, builds the request body, calls the API, handles response.
   */
-  const handleSubmit = async () => {
-    if (submitting) return;
-
-    /* Step 1: validate required fields — mark any that are empty */
+  const validateForm = () => {
     const newErrors = {};
     hooConfig.fields?.forEach((f) => {
       if (f.hidden) return;
       if (f.required && (formValues[f.id] ?? "") === "") newErrors[f.id] = true;
     });
-    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
-
-    /* Step 2: validate the partition key and sort key specifically */
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return false;
+    }
     const pkVal = formValues[pkId];
     const skVal = skId ? formValues[skId] : undefined;
-
     if (!pkVal?.toString().trim()) {
       setErrors((prev) => ({ ...prev, [pkId]: true }));
       setSubmitError(`${pkId} is required.`);
-      return;
+      return false;
     }
     if (skId && !skVal?.toString().trim()) {
       setErrors((prev) => ({ ...prev, [skId]: true }));
       setSubmitError(`${skId} is required.`);
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    if (!validateForm()) return;
+
+    const pkVal = formValues[pkId];
+    const skVal = skId ? formValues[skId] : undefined;
 
     /*
       Step 3: build the body object.
@@ -177,9 +201,11 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
     const body = {};
     const payloadObj = {};
     hooConfig.fields?.forEach((f) => {
-      const v = formValues[f.id];
+      let v = formValues[f.id];
       if (v === undefined) return;
       if (formMode !== "edit" && v === "") return;
+      /* Time fields are displayed in local time — convert back to EST for storage */
+      if (f.type === "time" && v) v = localToEST(v);
       if (f.isPayload) payloadObj[f.id] = v;
       else body[f.id] = v;
     });
@@ -189,16 +215,36 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
     setSubmitting(true);
     try {
       if (formMode === "create" || formMode === "duplicate") {
-        const res = await createHooRecord(hooConfig.tableName, body, pkId, skId);
+        const res = await createHooRecord(
+          hooConfig.tableName,
+          body,
+          pkId,
+          skId,
+        );
         /* 409 Conflict — a record with this pk+sk already exists */
         if (res.status === 409) {
-          setSubmitError(`A record for ${pkId}="${pkVal}" / ${skId}="${skVal}" already exists.`);
+          setSubmitError(
+            `A record for ${pkId}="${pkVal}" / ${skId}="${skVal}" already exists.`,
+          );
           return;
         }
-        if (!res.ok) { setSubmitError("Failed to create record. Please try again."); return; }
+        if (!res.ok) {
+          setSubmitError("Failed to create record. Please try again.");
+          return;
+        }
       } else {
-        const res = await updateHooRecord(hooConfig.tableName, pkVal, skVal, body, pkId, skId);
-        if (!res.ok) { setSubmitError("Failed to save record. Please try again."); return; }
+        const res = await updateHooRecord(
+          hooConfig.tableName,
+          pkVal,
+          skVal,
+          body,
+          pkId,
+          skId,
+        );
+        if (!res.ok) {
+          setSubmitError("Failed to save record. Please try again.");
+          return;
+        }
       }
       /* Step 5: success — flash green then auto-close after 1.5 s */
       setSubmitDone(true);
@@ -229,10 +275,8 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
       stacks the scrollable field area and the fixed footer bar vertically
     */
     <div id="hoo-form" className="flex-1 flex flex-col overflow-hidden">
-
       {/* ── Scrollable field area ───────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-
         {/*
           Duplicate mode info banner — amber box explaining the user must set
           new unique key values before creating (pre-filled IDs were cleared).
@@ -242,7 +286,13 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
         {formMode === "duplicate" && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
             Fields copied. Enter a new <strong>{pkId}</strong>
-            {skId && <> and <strong>{skId}</strong></>} to create the record.
+            {skId && (
+              <>
+                {" "}
+                and <strong>{skId}</strong>
+              </>
+            )}{" "}
+            to create the record.
           </div>
         )}
 
@@ -264,16 +314,24 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
         */}
         {confirmDiscard && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-4">
-            <span className="text-sm text-amber-700">Discard unsaved changes?</span>
+            <span className="text-sm text-amber-700">
+              Discard unsaved changes?
+            </span>
             <div className="flex gap-2 shrink-0">
               {/* Keep Editing — hides the banner, user stays on the form */}
-              <button type="button" onClick={() => setConfirmDiscard(false)}
-                className="px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-100 cursor-pointer">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(false)}
+                className="px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-100 cursor-pointer"
+              >
                 Keep Editing
               </button>
               {/* Discard — actually calls onCancel to close the form */}
-              <button type="button" onClick={() => onCancel?.()}
-                className="px-3 py-1 text-xs font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700 cursor-pointer">
+              <button
+                type="button"
+                onClick={() => onCancel?.()}
+                className="px-3 py-1 text-xs font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700 cursor-pointer"
+              >
                 Discard
               </button>
             </div>
@@ -314,7 +372,6 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
         px-8 py-4        → 32px left/right, 16px top/bottom padding
       */}
       <div className="shrink-0 flex items-center justify-between px-8 py-4 border-t border-[#c8b8c8]">
-
         {/*
           Cancel button — calls handleCancel which either closes immediately (clean
           form) or shows the discard confirmation banner (dirty form).
@@ -322,11 +379,17 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
           disabled:opacity-40 → 40% opacity makes it visually unavailable.
         */}
         {onCancel ? (
-          <button type="button" onClick={handleCancel} disabled={submitting || submitDone}
-            className="px-4 py-2 text-sm font-semibold text-[#5b2d5b] bg-white border border-[#d4c4d4] rounded-lg hover:bg-[#f5f0f5] transition-colors cursor-pointer disabled:opacity-40">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={submitting || submitDone}
+            className="px-4 py-2 text-sm font-semibold text-[#5b2d5b] bg-white border border-[#d4c4d4] rounded-lg hover:bg-[#f5f0f5] transition-colors cursor-pointer disabled:opacity-40"
+          >
             Cancel
           </button>
-        ) : <span />}
+        ) : (
+          <span />
+        )}
 
         {/*
           Submit button — calls handleSubmit; changes colour and label based on state.
@@ -340,13 +403,21 @@ export default function HOOForm({ hooConfig, formMode, initialValues, onDone, on
 
           transition-all duration-150 → colour changes animate smoothly
         */}
-        <button type="button" onClick={handleSubmit} disabled={submitting || submitDone}
-          className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border transition-all duration-150 cursor-pointer
-            ${submitDone
-              ? "bg-emerald-600 border-emerald-700"
-              : "bg-rose-700 border-rose-800 hover:bg-rose-900 active:scale-95 disabled:opacity-60"}`}>
-          {getSubmitLabel()}
-        </button>
+        {canWrite(resourceType) && (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || submitDone}
+            className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border transition-all duration-150 cursor-pointer
+              ${
+                submitDone
+                  ? "bg-emerald-600 border-emerald-700"
+                  : "bg-rose-700 border-rose-800 hover:bg-rose-900 active:scale-95 disabled:opacity-60"
+              }`}
+          >
+            {getSubmitLabel()}
+          </button>
+        )}
       </div>
     </div>
   );

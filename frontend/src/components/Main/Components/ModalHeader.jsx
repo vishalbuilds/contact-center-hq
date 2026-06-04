@@ -36,16 +36,32 @@
   badge       — any extra React node to display next to the title; used in
                 HOOModal to show the selected queue name as a purple pill
 */
-export default function ModalHeader({ title, description, formMode, onBack, onClose, badge }) {
+export default function ModalHeader({
+  title,
+  description,
+  formMode,
+  onBack,
+  onClose,
+  badge,
+}) {
   /*
     modeBadge — maps each formMode string to the label text and Tailwind
     colour classes for the badge pill. Kept as an object so adding a new
     mode in the future only requires one new entry here.
   */
   const modeBadge = {
-    create:    { label: "Creating",    cls: "bg-blue-100 text-blue-700 border-blue-200"   },
-    duplicate: { label: "Duplicating", cls: "bg-amber-100 text-amber-700 border-amber-200" },
-    edit:      { label: "Editing",     cls: "bg-green-100 text-green-700 border-green-200" },
+    create: {
+      label: "Creating",
+      cls: "bg-blue-100 text-blue-700 border-blue-200",
+    },
+    duplicate: {
+      label: "Duplicating",
+      cls: "bg-amber-100 text-amber-700 border-amber-200",
+    },
+    edit: {
+      label: "Editing",
+      cls: "bg-green-100 text-green-700 border-green-200",
+    },
   };
 
   return (
@@ -61,10 +77,8 @@ export default function ModalHeader({ title, description, formMode, onBack, onCl
                            the body area scrolls instead of the header squishing
     */
     <div className="flex items-start justify-between px-8 pt-6 pb-4 border-b border-[#c8b8c8] shrink-0">
-
       {/* ── Left group: back arrow + title + badges + description ── */}
       <div className="flex items-center gap-3">
-
         {/*
           Back arrow button — only rendered when onBack is provided.
           In HOOModal: shown when view is "week" or "form" (takes user back to search).
@@ -87,7 +101,16 @@ export default function ModalHeader({ title, description, formMode, onBack, onCl
             title="Back"
           >
             {/* Left-pointing arrow SVG icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M19 12H5M12 5l-7 7 7 7" />
             </svg>
           </button>
@@ -130,7 +153,9 @@ export default function ModalHeader({ title, description, formMode, onBack, onCl
                 border               → thin border in the badge colour
             */}
             {formMode && modeBadge[formMode] && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${modeBadge[formMode].cls}`}>
+              <span
+                className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${modeBadge[formMode].cls}`}
+              >
                 {modeBadge[formMode].label}
               </span>
             )}

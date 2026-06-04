@@ -53,9 +53,13 @@ function getPrimaryKeyField(tableConfig) {
     console.error("This card has no partitionKey defined");
     return null;
   }
-  const pkField = tableConfig.fields?.find((f) => f.id === tableConfig.partitionKey);
+  const pkField = tableConfig.fields?.find(
+    (f) => f.id === tableConfig.partitionKey,
+  );
   if (!pkField) {
-    console.error(`Primary key "${tableConfig.partitionKey}" is not defined in fields.`);
+    console.error(
+      `Primary key "${tableConfig.partitionKey}" is not defined in fields.`,
+    );
     return null;
   }
   return pkField;
@@ -75,13 +79,15 @@ function buildInitialFormValues(tableConfig, record) {
   const vals = {};
   tableConfig.fields?.forEach((f) => {
     const src = f.isPayload ? record?.payload : record;
-    const raw = src ? (src[f.id] ?? f.defaultValue ?? "") : (f.defaultValue ?? "");
-    vals[f.id] = f.type === "boolean" ? (raw === true || raw === "true") : raw;
+    const raw = src
+      ? (src[f.id] ?? f.defaultValue ?? "")
+      : (f.defaultValue ?? "");
+    vals[f.id] = f.type === "boolean" ? raw === true || raw === "true" : raw;
   });
   return vals;
 }
 
-export default function TableModal({ tableConfig, onClose }) {
+export default function TableModal({ tableConfig, resourceType, onClose }) {
   /*
     view          — "search" or "form"
     formMode      — "edit" | "create" | "duplicate" (only relevant when view="form")
@@ -109,7 +115,7 @@ export default function TableModal({ tableConfig, onClose }) {
     const vals = {};
     tableConfig.fields?.forEach((f) => {
       const raw = f.defaultValue ?? "";
-      vals[f.id] = f.type === "boolean" ? (raw === true || raw === "true") : raw;
+      vals[f.id] = f.type === "boolean" ? raw === true || raw === "true" : raw;
     });
     setInitialValues(vals);
     setFormMode("create");
@@ -129,8 +135,15 @@ export default function TableModal({ tableConfig, onClose }) {
     if (loadingPkValue) return;
     setLoadingPkValue(pkValue);
     try {
-      const record = await fetchTableRecord(tableConfig.tableName, pkField?.id, pkValue);
-      if (!record) { setFetchError("Failed to load record — please try again."); return; }
+      const record = await fetchTableRecord(
+        tableConfig.tableName,
+        pkField?.id,
+        pkValue,
+      );
+      if (!record) {
+        setFetchError("Failed to load record — please try again.");
+        return;
+      }
       setFetchError(null);
       setInitialValues(buildInitialFormValues(tableConfig, record));
       setFormMode("edit");
@@ -151,8 +164,15 @@ export default function TableModal({ tableConfig, onClose }) {
     if (loadingPkValue) return;
     setLoadingPkValue(pkValue);
     try {
-      const record = await fetchTableRecord(tableConfig.tableName, pkField?.id, pkValue);
-      if (!record) { setFetchError("Failed to load record — please try again."); return; }
+      const record = await fetchTableRecord(
+        tableConfig.tableName,
+        pkField?.id,
+        pkValue,
+      );
+      if (!record) {
+        setFetchError("Failed to load record — please try again.");
+        return;
+      }
       setFetchError(null);
       const vals = buildInitialFormValues(tableConfig, record);
       /* Clear the primary key so the user must provide a new unique value */
@@ -198,7 +218,6 @@ export default function TableModal({ tableConfig, onClose }) {
         flex flex-col → ModalHeader + content area stack vertically
       */}
       <div className="fixed top-5 left-0 right-0 bottom-0 z-50 bg-[#e8e0e8] rounded-2xl shadow-2xl border-l-4 border-l-rose-900 flex flex-col">
-
         {/*
           ModalHeader — the title bar with back arrow and Cancel button.
           title / description → from tableConfig (schema.json item)
@@ -234,6 +253,7 @@ export default function TableModal({ tableConfig, onClose }) {
             <TableSearch
               tableConfig={tableConfig}
               pkField={pkField}
+              resourceType={resourceType}
               onOpen={handleOpen}
               onDuplicate={handleDuplicate}
               onCreateNew={handleCreate}
@@ -255,6 +275,7 @@ export default function TableModal({ tableConfig, onClose }) {
             key={`${formMode}-${initialValues[pkField?.id] ?? "new"}`}
             tableConfig={tableConfig}
             pkField={pkField}
+            resourceType={resourceType}
             formMode={formMode}
             initialValues={initialValues}
             onDone={() => setView("search")}

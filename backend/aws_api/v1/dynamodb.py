@@ -37,7 +37,7 @@ def ping() -> None:
 
 
 class DynamoDB:
-    _cache: dict[tuple[str, str], "DynamoDB"] = {}
+    _cache: dict[str, "DynamoDB"] = {}
 
     def __init__(self, table_name: str):
         self.table_name = table_name

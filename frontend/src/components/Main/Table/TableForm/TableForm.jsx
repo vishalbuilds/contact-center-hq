@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createTableRecord, updateTableRecord } from "../../api/table.js";
+import { useUser } from "../../../../context/UserContext.jsx";
 import StringField from "../../Fields/StringField.jsx";
 import DropdownField from "../../Fields/DropdownField.jsx";
 import BooleanField from "../../Fields/BooleanField.jsx";
@@ -62,15 +63,23 @@ import TimeField from "../../Fields/TimeField.jsx";
   Fallback: StringField for any unknown type.
 */
 const FIELD_COMPONENTS = {
-  string:   StringField,
+  string: StringField,
   dropdown: DropdownField,
-  boolean:  BooleanField,
-  integer:  IntegerField,
-  date:     DateField,
-  time:     TimeField,
+  boolean: BooleanField,
+  integer: IntegerField,
+  date: DateField,
+  time: TimeField,
 };
 
-export default function TableForm({ tableConfig, pkField, formMode, initialValues, onDone }) {
+export default function TableForm({
+  tableConfig,
+  pkField,
+  resourceType,
+  formMode,
+  initialValues,
+  onDone,
+}) {
+  const { canWrite } = useUser();
   /*
     formValues  — current value for every field in the form
     errors      — { [fieldId]: true } for fields that failed required validation
@@ -87,7 +96,12 @@ export default function TableForm({ tableConfig, pkField, formMode, initialValue
   const doneTimerRef = useRef(null);
 
   /* Clear the auto-close timer if the component unmounts before it fires */
-  useEffect(() => () => { if (doneTimerRef.current) clearTimeout(doneTimerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+    },
+    [],
+  );
 
   /*
     handleChange — called by each field component on every change.
@@ -111,7 +125,10 @@ export default function TableForm({ tableConfig, pkField, formMode, initialValue
     tableConfig.fields?.forEach((f) => {
       if (f.required && (formValues[f.id] ?? "") === "") newErrors[f.id] = true;
     });
-    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
 
     const pkId = pkField.id;
     const pkVal = formValues[pkId];
@@ -146,11 +163,27 @@ export default function TableForm({ tableConfig, pkField, formMode, initialValue
       if (formMode === "create" || formMode === "duplicate") {
         const res = await createTableRecord(tableConfig.tableName, pkId, body);
         /* 409 Conflict — a record with this primary key already exists */
-        if (res.status === 409) { setPkError(`A record with this ${pkField.title ?? "key"} already exists.`); return; }
-        if (!res.ok) { setPkError("Failed to create record. Please try again."); return; }
+        if (res.status === 409) {
+          setPkError(
+            `A record with this ${pkField.title ?? "key"} already exists.`,
+          );
+          return;
+        }
+        if (!res.ok) {
+          setPkError("Failed to create record. Please try again.");
+          return;
+        }
       } else {
-        const res = await updateTableRecord(tableConfig.tableName, pkId, pkVal, body);
-        if (!res.ok) { setPkError("Failed to save record. Please try again."); return; }
+        const res = await updateTableRecord(
+          tableConfig.tableName,
+          pkId,
+          pkVal,
+          body,
+        );
+        if (!res.ok) {
+          setPkError("Failed to save record. Please try again.");
+          return;
+        }
       }
       /* Step 5: success — flash green then call onDone after 1.5 s */
       setSubmitDone(true);
@@ -180,10 +213,8 @@ export default function TableForm({ tableConfig, pkField, formMode, initialValue
       flex-1 flex flex-col overflow-hidden → scrollable field area + fixed footer
     */
     <div className="flex-1 flex flex-col overflow-hidden">
-
       {/* ── Scrollable field area ─────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-
         {/*
           Duplicate mode banner — amber box reminding the user to enter a
           new unique primary key value before creating the record.
@@ -243,18 +274,21 @@ export default function TableForm({ tableConfig, pkField, formMode, initialValue
           Loading → disabled:opacity-60
       */}
       <div className="shrink-0 flex justify-end px-8 py-4 border-t border-[#c8b8c8]">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting || submitDone}
-          className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border transition-all duration-150 cursor-pointer
-            ${submitDone
-              ? "bg-emerald-600 border-emerald-700"
-              : "bg-rose-700 border-rose-800 hover:bg-rose-900 active:scale-95 disabled:opacity-60"
-            }`}
-        >
-          {getSubmitLabel()}
-        </button>
+        {canWrite(resourceType) && (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || submitDone}
+            className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border transition-all duration-150 cursor-pointer
+              ${
+                submitDone
+                  ? "bg-emerald-600 border-emerald-700"
+                  : "bg-rose-700 border-rose-800 hover:bg-rose-900 active:scale-95 disabled:opacity-60"
+              }`}
+          >
+            {getSubmitLabel()}
+          </button>
+        )}
       </div>
     </div>
   );

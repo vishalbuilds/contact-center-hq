@@ -41,7 +41,6 @@ export default function StringField({ field, value, onChange, error }) {
       flex flex-col gap-1 → 4px gap between each child element
     */
     <div className="flex flex-col gap-1">
-
       {/*
         Label — clicking this focuses the input (linked via htmlFor/id).
         text-xs font-semibold → small bold text
@@ -62,7 +61,9 @@ export default function StringField({ field, value, onChange, error }) {
         text-[#7a4f7a]     → muted purple
         leading-tight      → tighter line height for compact layout
       */}
-      <p className="text-[10px] text-[#7a4f7a] leading-tight">{field.description}</p>
+      <p className="text-[10px] text-[#7a4f7a] leading-tight">
+        {field.description}
+      </p>
 
       {/*
         Text input — the actual editable box.
@@ -100,9 +101,10 @@ export default function StringField({ field, value, onChange, error }) {
         onChange={(e) => onChange(field.id, e.target.value)}
         className={`mt-1 px-3 py-1.5 text-sm text-[#3b1a3b] bg-white rounded-lg border
           focus:outline-none focus:ring-1 placeholder:text-[#b8a8b8] transition-colors duration-150
-          ${error
-            ? "border-rose-600 focus:border-rose-600 focus:ring-rose-600"
-            : "border-[#b8a8b8] focus:border-rose-700 focus:ring-rose-700"
+          ${
+            error
+              ? "border-rose-600 focus:border-rose-600 focus:ring-rose-600"
+              : "border-[#b8a8b8] focus:border-rose-700 focus:ring-rose-700"
           }`}
         placeholder={field.defaultValue || ""}
       />
@@ -111,7 +113,11 @@ export default function StringField({ field, value, onChange, error }) {
         Validation error message — only rendered when error=true.
         text-[10px] text-rose-600 mt-0.5 → tiny red text, 2px above gap
       */}
-      {error && <p className="text-[10px] text-rose-600 mt-0.5">This field is required</p>}
+      {error && (
+        <p className="text-[10px] text-rose-600 mt-0.5">
+          This field is required
+        </p>
+      )}
     </div>
   );
 }

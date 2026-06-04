@@ -1,3 +1,5 @@
+import { estToLocal } from "../../../utils/timezone.js";
+
 /*
   buildFormValues.js — builds the initial values object for the HOO form.
 
@@ -78,11 +80,23 @@ export function buildFormValues(hooConfig, record) {
         Boolean normalisation: if the field type is boolean, convert the raw
         value to a real JS boolean. DynamoDB might return true, false, "true",
         or "false" — we always want a real boolean so BooleanField works correctly.
+
+        Time normalisation: time fields are stored in DynamoDB as EST.
+        Convert to the user's local time for display only when reading from
+        an existing record (record != null). Default values are left as-is.
       */
     const raw = src
       ? (src[f.id] ?? f.defaultValue ?? "")
       : (f.defaultValue ?? "");
-    vals[f.id] = f.type === "boolean" ? raw === true || raw === "true" : raw;
+
+    if (f.type === "boolean") {
+      vals[f.id] = raw === true || raw === "true";
+    } else if (f.type === "time" && record && raw) {
+      /* EST (storage) → local (display) */
+      vals[f.id] = estToLocal(raw);
+    } else {
+      vals[f.id] = raw;
+    }
   });
 
   return vals;

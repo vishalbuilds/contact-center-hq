@@ -46,7 +46,6 @@ export default function TimeField({ field, value, onChange, error }) {
       Wrapper — vertical stack with 4px gaps.
     */
     <div className="flex flex-col gap-1">
-
       {/*
         Label — clicking it opens the time picker (linked via htmlFor/id).
         text-xs font-semibold text-[#3b1a3b] → small bold dark-plum
@@ -62,7 +61,9 @@ export default function TimeField({ field, value, onChange, error }) {
         (e.g. "Schedule start time", "Schedule end time")
         text-[10px] text-[#7a4f7a] leading-tight → tiny muted-purple hint text
       */}
-      <p className="text-[10px] text-[#7a4f7a] leading-tight">{field.description}</p>
+      <p className="text-[10px] text-[#7a4f7a] leading-tight">
+        {field.description}
+      </p>
 
       {/*
         Time input — the browser's native time picker.
@@ -83,14 +84,19 @@ export default function TimeField({ field, value, onChange, error }) {
         onChange={(e) => onChange(field.id, e.target.value)}
         className={`mt-1 px-3 py-1.5 text-sm text-[#3b1a3b] bg-white rounded-lg border
           focus:outline-none focus:ring-1 transition-colors duration-150
-          ${error
-            ? "border-rose-600 focus:border-rose-600 focus:ring-rose-600"
-            : "border-[#b8a8b8] focus:border-rose-700 focus:ring-rose-700"
+          ${
+            error
+              ? "border-rose-600 focus:border-rose-600 focus:ring-rose-600"
+              : "border-[#b8a8b8] focus:border-rose-700 focus:ring-rose-700"
           }`}
       />
 
       {/* Validation error */}
-      {error && <p className="text-[10px] text-rose-600 mt-0.5">This field is required</p>}
+      {error && (
+        <p className="text-[10px] text-rose-600 mt-0.5">
+          This field is required
+        </p>
+      )}
     </div>
   );
 }

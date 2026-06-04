@@ -1,0 +1,33 @@
+# Auth group configuration.
+#
+# group_name must match the Cognito User Pool group name exactly.
+# access_level: "admin"  → full read + write
+#               "viewer" → read only
+# resources:    list of "table" and/or "hoo"
+#
+# Replace the placeholder group names with your actual Cognito group names.
+
+groups:
+  cc-admin-all:
+    access_level: admin
+    resources: [table, hoo]
+
+  cc-admin-hoo:
+    access_level: admin
+    resources: [hoo]
+
+  cc-admin-table:
+    access_level: admin
+    resources: [table]
+
+  cc-viewer-all:
+    access_level: viewer
+    resources: [table, hoo]
+
+  cc-viewer-hoo:
+    access_level: viewer
+    resources: [hoo]
+
+  cc-viewer-table:
+    access_level: viewer
+    resources: [table]
