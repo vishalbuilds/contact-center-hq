@@ -36,7 +36,6 @@ export default function BooleanField({ field, value, onChange, error }) {
       Wrapper — stacks all elements vertically with 4px gaps.
     */
     <div className="flex flex-col gap-1">
-
       {/*
         Title — shown as a plain <span> (not a <label>) because there is no
         single focusable input to link it to; the two buttons form the input.
@@ -54,7 +53,12 @@ export default function BooleanField({ field, value, onChange, error }) {
         (e.g. "enable or disable call recording for this user")
         text-[10px] text-[#7a4f7a] leading-tight → very small muted-purple text
       */}
-      <p className="text-[10px] text-[#7a4f7a] leading-tight">{field.description}</p>
+      <p className="text-[10px] text-[#7a4f7a] leading-tight">
+        {field.description}
+      </p>
+      <p className="text-[10px] text-[#8b6b8b] leading-tight mt-0.5">
+        Value: true or false
+      </p>
 
       {/*
         Button group — the two toggles sit side by side.
@@ -63,7 +67,6 @@ export default function BooleanField({ field, value, onChange, error }) {
                                    for screen readers
       */}
       <div className="mt-1 flex gap-2" role="group" aria-label={field.title}>
-
         {/*
           "True" button — calls onChange with the boolean true when clicked.
 
@@ -86,9 +89,10 @@ export default function BooleanField({ field, value, onChange, error }) {
           type="button"
           onClick={() => onChange(field.id, true)}
           className={`px-4 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-150 cursor-pointer
-            ${value === true
-              ? "bg-rose-700 text-white border-rose-800"
-              : "bg-[#d4c8d4] text-[#5b2d5b] border-[#b8a8b8] hover:bg-[#c0b0c0]"
+            ${
+              value === true
+                ? "bg-rose-700 text-white border-rose-800"
+                : "bg-[#d4c8d4] text-[#5b2d5b] border-[#b8a8b8] hover:bg-[#c0b0c0]"
             }`}
         >
           True
@@ -102,9 +106,10 @@ export default function BooleanField({ field, value, onChange, error }) {
           type="button"
           onClick={() => onChange(field.id, false)}
           className={`px-4 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-150 cursor-pointer
-            ${value === false
-              ? "bg-rose-700 text-white border-rose-800"
-              : "bg-[#d4c8d4] text-[#5b2d5b] border-[#b8a8b8] hover:bg-[#c0b0c0]"
+            ${
+              value === false
+                ? "bg-rose-700 text-white border-rose-800"
+                : "bg-[#d4c8d4] text-[#5b2d5b] border-[#b8a8b8] hover:bg-[#c0b0c0]"
             }`}
         >
           False
@@ -112,7 +117,11 @@ export default function BooleanField({ field, value, onChange, error }) {
       </div>
 
       {/* Validation error — rarely triggered for booleans since they always have a value */}
-      {error && <p className="text-[10px] text-rose-600 mt-0.5">This field is required</p>}
+      {error && (
+        <p className="text-[10px] text-rose-600 mt-0.5">
+          This field is required
+        </p>
+      )}
     </div>
   );
 }

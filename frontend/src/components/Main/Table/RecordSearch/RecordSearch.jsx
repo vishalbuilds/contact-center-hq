@@ -31,7 +31,14 @@ import { searchTableRecords, deleteTableRecord } from "../../api/table.js";
   onCreateNew     — called on "New Record" → parent opens create form with defaults
   loadingPkValue  — pk value currently being fetched by the parent (shows spinner on that row)
 */
-export default function RecordSearch({ tableConfig, pkField, onOpen, onDuplicate, onCreateNew, loadingPkValue }) {
+export default function RecordSearch({
+  tableConfig,
+  pkField,
+  onOpen,
+  onDuplicate,
+  onCreateNew,
+  loadingPkValue,
+}) {
   /*
     searchInput     — text currently in the search box
     searching       — true while the search API call is in flight
@@ -55,7 +62,11 @@ export default function RecordSearch({ tableConfig, pkField, onOpen, onDuplicate
     setSearching(true);
     setError(null);
     try {
-      const data = await searchTableRecords(tableConfig.tableName, pkField.id, searchInput);
+      const data = await searchTableRecords(
+        tableConfig.tableName,
+        pkField.id,
+        searchInput,
+      );
       setResults(data);
     } catch {
       setError("Search failed — check your connection and try again.");
@@ -91,7 +102,6 @@ export default function RecordSearch({ tableConfig, pkField, onOpen, onDuplicate
       px-8 py-6              → 32px left/right, 24px top/bottom padding
     */
     <div className="flex-1 overflow-y-auto px-8 py-6">
-
       {/*
         Search bar row — input + Search + New Record buttons.
         The placeholder dynamically shows the pk field title so the user

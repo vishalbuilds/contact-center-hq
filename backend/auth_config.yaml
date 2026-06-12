@@ -1,0 +1,31 @@
+# Auth group configuration.
+#
+# group_name must match the Cognito User Pool group name exactly.
+# access_level: "admin"  → full read + write
+#               "viewer" → read only
+# resources:    list of "table" and/or "hoo"
+
+groups:
+  admin_HOO_Table:
+    access_level: admin
+    resources: [table, hoo]
+
+  admin_HOO:
+    access_level: admin
+    resources: [hoo]
+
+  admin_Table:
+    access_level: admin
+    resources: [table]
+
+  general_HOO_Table:
+    access_level: viewer
+    resources: [table, hoo]
+
+  general_HOO:
+    access_level: viewer
+    resources: [hoo]
+
+  general_Table:
+    access_level: viewer
+    resources: [table]

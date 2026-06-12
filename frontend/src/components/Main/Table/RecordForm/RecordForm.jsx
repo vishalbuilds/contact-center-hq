@@ -54,15 +54,21 @@ import TimeField from "../../Fields/TimeField.jsx";
   Fallback: StringField for any unknown type.
 */
 const FIELD_COMPONENTS = {
-  string:   StringField,
+  string: StringField,
   dropdown: DropdownField,
-  boolean:  BooleanField,
-  integer:  IntegerField,
-  date:     DateField,
-  time:     TimeField,
+  boolean: BooleanField,
+  integer: IntegerField,
+  date: DateField,
+  time: TimeField,
 };
 
-export default function RecordForm({ tableConfig, pkField, formMode, initialValues, onDone }) {
+export default function RecordForm({
+  tableConfig,
+  pkField,
+  formMode,
+  initialValues,
+  onDone,
+}) {
   /*
     formValues  — current value for every field
     errors      — { [fieldId]: true } for required fields that are empty
@@ -74,12 +80,18 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
   const [formValues, setFormValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const [pkError, setPkError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitDone, setSubmitDone] = useState(false);
   const doneTimerRef = useRef(null);
 
   /* Prevent memory leak if the component unmounts before the timer fires */
-  useEffect(() => () => { if (doneTimerRef.current) clearTimeout(doneTimerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+    },
+    [],
+  );
 
   /*
     handleChange — updates formValues for the changed field, clears its error,
@@ -89,6 +101,7 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
     setFormValues((prev) => ({ ...prev, [fieldId]: value }));
     if (errors[fieldId]) setErrors((prev) => ({ ...prev, [fieldId]: false }));
     if (pkError && pkField && fieldId === pkField.id) setPkError("");
+    if (submitError) setSubmitError("");
   };
 
   /* handleSubmit — validates, builds the body, calls the API */
@@ -100,7 +113,10 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
     tableConfig.fields?.forEach((f) => {
       if (f.required && (formValues[f.id] ?? "") === "") newErrors[f.id] = true;
     });
-    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
 
     const pkId = pkField.id;
     const pkVal = formValues[pkId];
@@ -133,17 +149,33 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
     try {
       if (formMode === "create" || formMode === "duplicate") {
         const res = await createTableRecord(tableConfig.tableName, pkId, body);
-        if (res.status === 409) { setPkError(`A record with this ${pkField.title ?? "key"} already exists.`); return; }
-        if (!res.ok) { setPkError("Failed to create record. Please try again."); return; }
+        if (res.status === 409) {
+          setPkError(
+            `A record with this ${pkField.title ?? "key"} already exists.`,
+          );
+          return;
+        }
+        if (!res.ok) {
+          setPkError("Failed to create record. Please try again.");
+          return;
+        }
       } else {
-        const res = await updateTableRecord(tableConfig.tableName, pkId, pkVal, body);
-        if (!res.ok) { setPkError("Failed to save record. Please try again."); return; }
+        const res = await updateTableRecord(
+          tableConfig.tableName,
+          pkId,
+          pkVal,
+          body,
+        );
+        if (!res.ok) {
+          setSubmitError("Failed to save record. Please try again.");
+          return;
+        }
       }
       /* Step 5: success — flash green button, then call onDone after 1.5 s */
       setSubmitDone(true);
       doneTimerRef.current = setTimeout(onDone, 1500);
     } catch {
-      setPkError("An unexpected error occurred. Please try again.");
+      setSubmitError("An unexpected error occurred. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -164,18 +196,31 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
   return (
     /* Form container — fills remaining height; header is provided by the parent modal */
     <div className="flex-1 flex flex-col overflow-hidden">
-
       {/* Scrollable field area */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-
         {/*
           Duplicate mode banner — reminds user to set a new unique pk.
           bg-amber-50 border border-amber-200 → soft yellow warning colour
         */}
-        {formMode === "duplicate" && (
+        {submitDone && (
+          <div className="max-w-lg mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+            <span className="font-semibold">
+              {formMode === "edit" ? "Updated" : "Created"}:
+            </span>{" "}
+            <span className="font-semibold font-mono">
+              {String(formValues[pkField?.id] ?? "")}
+            </span>
+          </div>
+        )}
+        {formMode === "duplicate" && !submitDone && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
             All fields copied. Set a new unique{" "}
             <strong>{pkField?.title ?? "primary key"}</strong> before creating.
+          </div>
+        )}
+        {submitError && (
+          <div className="max-w-lg mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {submitError}
           </div>
         )}
 
@@ -221,9 +266,10 @@ export default function RecordForm({ tableConfig, pkField, formMode, initialValu
           onClick={handleSubmit}
           disabled={submitting || submitDone}
           className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border transition-all duration-150 cursor-pointer
-            ${submitDone
-              ? "bg-emerald-600 border-emerald-700"
-              : "bg-rose-700 border-rose-800 hover:bg-rose-900 active:scale-95 disabled:opacity-60"
+            ${
+              submitDone
+                ? "bg-emerald-600 border-emerald-700"
+                : "bg-rose-700 border-rose-800 hover:bg-rose-900 active:scale-95 disabled:opacity-60"
             }`}
         >
           {getSubmitLabel()}

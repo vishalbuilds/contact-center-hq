@@ -3,6 +3,7 @@ import DaySlot from "./DaySlot/DaySlot.jsx";
 import HOOForm from "../HOOForm/HOOForm.jsx";
 import { buildFormValues } from "../buildFormValues.js";
 import { getQueueRecords, deleteHooRecord } from "../../api/hoo.js";
+import { useUser } from "../../../../context/UserContext.jsx";
 
 /*
   HOOWeekView.jsx — the 7-column week grid for HOO records.
@@ -44,13 +45,6 @@ import { getQueueRecords, deleteHooRecord } from "../../api/hoo.js";
   hooConfig     — full config object from schema.json (id, tableName, fields, keys)
   selectedQueue — { queueArn, queueName } for the queue whose records are shown
 */
-
-/*
-  DAYS_OF_WEEK — the fixed ordered list of day names used in schedule mode.
-  Used to render columns in the correct Mon→Sun order regardless of the
-  order records come back from the database.
-*/
-const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /*
   getWeekStart — returns the Monday of the week containing `date`.
@@ -95,19 +89,29 @@ function toDateStr(date) {
 */
 function formatWeekLabel(weekStart) {
   const weekEnd = addDays(weekStart, 6);
-  const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmt = (d) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${fmt(weekStart)} – ${fmt(weekEnd)}, ${weekStart.getFullYear()}`;
 }
 
-export default function HOOWeekView({ hooConfig, selectedQueue }) {
-  /*
-    isSchedule — true when viewing the schedule table, false for exceptions.
-    slotKey    — the sort key column name used to group records into columns:
-                  schedule → "dayOfWeek"  (e.g. "Monday")
-                  exception → "exceptionDate" (e.g. "06/03/2025")
-  */
+export default function HOOWeekView({
+  hooConfig,
+  resourceType,
+  selectedQueue,
+}) {
+  const { canWrite } = useUser();
   const isSchedule = hooConfig.id === "schedule";
   const slotKey = hooConfig.sortKey;
+  const DAYS_OF_WEEK = hooConfig.fields?.find((f) => f.id === "dayOfWeek")
+    ?.options ?? [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
 
   /*
     records              — all HOO records for this queue from DynamoDB
@@ -169,11 +173,16 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
   */
   const openDuplicate = (record) => {
     const vals = buildFormValues(hooConfig, record);
-    const clearIds = [hooConfig.partitionKey, hooConfig.GSIKey, hooConfig.sortKey].filter(Boolean);
+    const clearIds = [
+      hooConfig.partitionKey,
+      hooConfig.GSIKey,
+      hooConfig.sortKey,
+    ].filter(Boolean);
     clearIds.forEach((id) => {
       const field = hooConfig.fields?.find((f) => f.id === id);
       const def = field?.defaultValue ?? "";
-      vals[id] = field?.type === "boolean" ? (def === true || def === "true") : def;
+      vals[id] =
+        field?.type === "boolean" ? def === true || def === "true" : def;
     });
     setInlineForm({
       mode: "duplicate",
@@ -202,7 +211,11 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     the inline form panel. This ensures the grid always shows fresh data.
   */
   const handleFormDone = async () => {
-    const refreshed = await getQueueRecords(hooConfig.tableName, selectedQueue.queueArn, hooConfig.partitionKey);
+    const refreshed = await getQueueRecords(
+      hooConfig.tableName,
+      selectedQueue.queueArn,
+      hooConfig.partitionKey,
+    );
     setRecords(refreshed);
     setInlineForm(null);
   };
@@ -220,9 +233,19 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     const sortValue = record[slotKey];
     setDeleteError(null);
     try {
-      await deleteHooRecord(hooConfig.tableName, recQueueArn, sortValue, hooConfig.partitionKey, hooConfig.sortKey);
+      await deleteHooRecord(
+        hooConfig.tableName,
+        recQueueArn,
+        sortValue,
+        hooConfig.partitionKey,
+        hooConfig.sortKey,
+      );
       if (inlineForm?.label === sortValue) setInlineForm(null);
-      const refreshed = await getQueueRecords(hooConfig.tableName, selectedQueue.queueArn, hooConfig.partitionKey);
+      const refreshed = await getQueueRecords(
+        hooConfig.tableName,
+        selectedQueue.queueArn,
+        hooConfig.partitionKey,
+      );
       setRecords(refreshed);
     } catch {
       setDeleteError("Delete failed — please try again.");
@@ -241,7 +264,8 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     const target = new Date(isoDate + "T00:00:00");
     const todayBase = new Date();
     todayBase.setHours(0, 0, 0, 0);
-    const diff = getWeekStart(target).getTime() - getWeekStart(todayBase).getTime();
+    const diff =
+      getWeekStart(target).getTime() - getWeekStart(todayBase).getTime();
     setWeekOffset(Math.round(diff / (7 * 24 * 60 * 60 * 1000)));
   };
 
@@ -264,14 +288,22 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
     });
 
     return (
-      <div id="hoo-week-view-schedule" className="flex-1 flex flex-col overflow-hidden">
+      <div
+        id="hoo-week-view-schedule"
+        className="flex-1 flex flex-col overflow-hidden"
+      >
         <div
           className="overflow-y-auto px-8 py-3"
-          style={{ flex: inlineForm ? "0 0 auto" : "1 1 auto", maxHeight: inlineForm ? "34%" : undefined }}
+          style={{
+            flex: inlineForm ? "0 0 auto" : "1 1 auto",
+            maxHeight: inlineForm ? "34%" : undefined,
+          }}
         >
           <p className="text-xs text-[#8b6b8b] mb-3">
             Weekly schedule for{" "}
-            <span className="font-semibold text-[#3b1a3b]">{selectedQueue?.queueName}</span>
+            <span className="font-semibold text-[#3b1a3b]">
+              {selectedQueue?.queueName}
+            </span>
           </p>
           {deleteError && (
             <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
@@ -287,10 +319,11 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
                 records={byDay[day] ?? []}
                 isSchedule
                 isActive={inlineForm?.label === day}
-                onEdit={openEdit}
-                onCreate={() => openCreate(day)}
-                onDelete={handleDelete}
-                onDuplicate={openDuplicate}
+                onEdit={canWrite(resourceType) ? openEdit : null}
+                onCreate={canWrite(resourceType) ? () => openCreate(day) : null}
+                onDelete={canWrite(resourceType) ? handleDelete : null}
+                onDuplicate={canWrite(resourceType) ? openDuplicate : null}
+                onView={openEdit}
               />
             ))}
           </div>
@@ -300,6 +333,7 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
             key={inlineForm.label}
             inlineForm={inlineForm}
             hooConfig={hooConfig}
+            resourceType={resourceType}
             onClose={() => setInlineForm(null)}
             onDone={handleFormDone}
           />
@@ -324,46 +358,107 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
   const todayStr = toDateStr(today);
 
   const visibleWeekRecords = weekDates.flatMap((date) =>
-    (byDate[toDateStr(date)] ?? []).map((r) => ({ ...r, _dateStr: toDateStr(date), _dateObj: date }))
+    (byDate[toDateStr(date)] ?? []).map((r) => ({
+      ...r,
+      _dateStr: toDateStr(date),
+      _dateObj: date,
+    })),
   );
 
   return (
-    <div id="hoo-week-view-exceptions" className="flex-1 flex flex-col overflow-hidden">
+    <div
+      id="hoo-week-view-exceptions"
+      className="flex-1 flex flex-col overflow-hidden"
+    >
       <div
         className="flex flex-row overflow-hidden"
-        style={{ flex: inlineForm ? "0 0 auto" : "1 1 auto", maxHeight: inlineForm ? "34%" : undefined }}
+        style={{
+          flex: inlineForm ? "0 0 auto" : "1 1 auto",
+          maxHeight: inlineForm ? "34%" : undefined,
+        }}
       >
         {/* Grid */}
-        <div className={`flex-1 min-w-0 overflow-y-auto py-3 ${showPanel ? "px-4" : "px-8"}`}>
+        <div
+          className={`flex-1 min-w-0 overflow-y-auto py-3 ${showPanel ? "px-4" : "px-8"}`}
+        >
           <div className="flex items-center gap-3 mb-3">
-            <button type="button" onClick={() => setWeekOffset((w) => w - 1)}
-              className="p-1.5 rounded-lg text-[#5b2d5b] hover:bg-[#d4c8d4] transition-colors cursor-pointer shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            <button
+              type="button"
+              onClick={() => setWeekOffset((w) => w - 1)}
+              className="p-1.5 rounded-lg text-[#5b2d5b] hover:bg-[#d4c8d4] transition-colors cursor-pointer shrink-0"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
             </button>
             <div className="flex-1 text-center min-w-0">
-              <span className="text-sm font-semibold text-[#3b1a3b]">{formatWeekLabel(weekStart)}</span>
+              <span className="text-sm font-semibold text-[#3b1a3b]">
+                {formatWeekLabel(weekStart)}
+              </span>
               {weekOffset === 0 && (
                 <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
                   Current Week
                 </span>
               )}
             </div>
-            <button type="button" onClick={() => setWeekOffset((w) => w + 1)}
-              className="p-1.5 rounded-lg text-[#5b2d5b] hover:bg-[#d4c8d4] transition-colors cursor-pointer shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+            <button
+              type="button"
+              onClick={() => setWeekOffset((w) => w + 1)}
+              className="p-1.5 rounded-lg text-[#5b2d5b] hover:bg-[#d4c8d4] transition-colors cursor-pointer shrink-0"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
             </button>
-            <button type="button" onClick={() => setShowPanel((p) => !p)}
+            <button
+              type="button"
+              onClick={() => setShowPanel((p) => !p)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer
-                ${showPanel ? "bg-rose-700 text-white border-rose-800 hover:bg-rose-900"
-                  : "bg-white text-[#5b2d5b] border-[#d4c4d4] hover:border-rose-400 hover:text-rose-700"}`}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                ${
+                  showPanel
+                    ? "bg-rose-700 text-white border-rose-800 hover:bg-rose-900"
+                    : "bg-white text-[#5b2d5b] border-[#d4c4d4] hover:border-rose-400 hover:text-rose-700"
+                }`}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
               </svg>
               {showPanel ? "Hide Panel" : "Select Date"}
             </button>
           </div>
           <p className="text-xs text-[#8b6b8b] mb-2">
-            Exceptions for <span className="font-semibold text-[#3b1a3b]">{selectedQueue?.queueName}</span>
+            Exceptions for{" "}
+            <span className="font-semibold text-[#3b1a3b]">
+              {selectedQueue?.queueName}
+            </span>
           </p>
           {deleteError && (
             <div className="mb-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
@@ -377,15 +472,21 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
                 <DaySlot
                   key={dateStr}
                   label={date.toLocaleDateString("en-US", { weekday: "short" })}
-                  sublabel={date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  sublabel={date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
                   records={byDate[dateStr] ?? []}
                   isToday={dateStr === todayStr}
                   isSchedule={false}
                   isActive={inlineForm?.label === dateStr}
-                  onEdit={openEdit}
-                  onCreate={() => openCreate(dateStr)}
-                  onDelete={handleDelete}
-                  onDuplicate={openDuplicate}
+                  onEdit={canWrite(resourceType) ? openEdit : null}
+                  onCreate={
+                    canWrite(resourceType) ? () => openCreate(dateStr) : null
+                  }
+                  onDelete={canWrite(resourceType) ? handleDelete : null}
+                  onDuplicate={canWrite(resourceType) ? openDuplicate : null}
+                  onView={openEdit}
                 />
               );
             })}
@@ -393,92 +494,123 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
         </div>
 
         {/* Right panel */}
-        {showPanel && (
-          <div className="w-80 shrink-0 border-l border-[#d4c4d4] bg-[#faf7fa] flex flex-col overflow-hidden">
-            <div className="shrink-0 px-4 py-4 border-b border-[#e4d4e4] bg-white">
-              <p className="text-xs font-semibold text-[#5b2d5b] mb-2">Jump to week</p>
-              <input type="date" value={panelDate} onChange={(e) => handlePanelDateChange(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm text-[#3b1a3b] bg-white border border-[#d4c4d4] rounded-lg focus:outline-none focus:border-rose-400" />
-              <p className="text-[10px] text-[#a090a0] mt-1.5">Pick any date to navigate to that week</p>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-              <p className="text-xs font-semibold text-[#3b1a3b]">
-                {visibleWeekRecords.length === 0
-                  ? "No exceptions this week"
-                  : `${visibleWeekRecords.length} exception${visibleWeekRecords.length !== 1 ? "s" : ""} this week`}
-              </p>
-              {visibleWeekRecords.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-10 h-10 rounded-full bg-[#f0e8f0] flex items-center justify-center mb-3">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b6b8b" strokeWidth="2" strokeLinecap="round">
-                      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
-                    </svg>
-                  </div>
-                  <p className="text-xs text-[#a090a0]">No holidays or exceptions scheduled for this week.</p>
-                </div>
-              ) : (
-                visibleWeekRecords.map((record) => {
-                  const p = record.payload ?? {};
-                  return (
-                    <div key={record[slotKey]} className="bg-white rounded-xl border border-[#e4d4e4] overflow-hidden">
-                      <div className="px-3 py-2 bg-[#f5f0f5] border-b border-[#e4d4e4] flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#5b2d5b]">
-                          {record._dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                        </span>
-                        <span className="text-[10px] text-[#a090a0]">{record[slotKey]}</span>
-                      </div>
-                      <div className="px-3 py-3 flex flex-col gap-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-[#3b1a3b]">{p.exceptionType ?? "Exception"}</span>
-                          {p.fullClose && (
-                            <span className="text-[9px] font-semibold bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded">Full Close</span>
-                          )}
-                        </div>
-                        {p.description && <p className="text-xs text-[#5b2d5b] leading-relaxed">{p.description}</p>}
-                        {p.timezone && <p className="text-[10px] text-[#a090a0]">{p.timezone}</p>}
-                        <div className="flex gap-1.5 flex-wrap">
-                          {p.vmMenu && <span className="text-[9px] bg-[#f0e8f0] text-[#7b4b7b] px-2 py-0.5 rounded-full border border-[#e0d0e0]">VM Menu</span>}
-                          {p.offerVm && <span className="text-[9px] bg-[#f0e8f0] text-[#7b4b7b] px-2 py-0.5 rounded-full border border-[#e0d0e0]">Offer VM</span>}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 flex-wrap">
-                          <button type="button" onClick={() => openEdit(record)}
-                            className="self-start px-3 py-1 text-xs font-semibold text-white bg-rose-700 rounded-lg hover:bg-rose-900 active:scale-95 transition-all cursor-pointer">
-                            Edit
-                          </button>
-                          <button type="button" onClick={() => openDuplicate(record)}
-                            className="self-start px-3 py-1 text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 hover:border-violet-400 active:scale-95 transition-all cursor-pointer">
-                            Duplicate
-                          </button>
-                          {confirmDeleteSortKey === record[slotKey] ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-semibold text-[#3b1a3b]">Delete?</span>
-                              <button type="button"
-                                onClick={() => { handleDelete(record); setConfirmDeleteSortKey(null); }}
-                                className="px-2 py-1 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 cursor-pointer transition-colors">
-                                Yes
-                              </button>
-                              <button type="button"
-                                onClick={() => setConfirmDeleteSortKey(null)}
-                                className="px-2 py-1 text-xs font-semibold text-[#5b2d5b] bg-[#e8d8e8] rounded-lg hover:bg-[#d4c4d4] cursor-pointer transition-colors">
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <button type="button"
-                              onClick={() => setConfirmDeleteSortKey(record[slotKey])}
-                              className="self-start px-3 py-1 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-400 active:scale-95 transition-all cursor-pointer">
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </div>
+        {showPanel && (() => {
+          // All exceptions for this queue sorted chronologically
+          const parseSlotDate = (s) => {
+            if (!s) return new Date("invalid");
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+              const [m, d, y] = s.split("/");
+              return new Date(`${y}-${m}-${d}T00:00:00`);
+            }
+            return new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00` : s);
+          };
+          const allSorted = [...records].sort(
+            (a, b) => parseSlotDate(a[slotKey]) - parseSlotDate(b[slotKey]),
+          );
+
+          // Navigate to the week containing a record and open it
+          const handleRecordOpen = (record) => {
+            const d = parseSlotDate(record[slotKey]);
+            if (!isNaN(d)) {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              handlePanelDateChange(`${y}-${m}-${day}`);
+            }
+            openEdit(record);
+          };
+
+          return (
+            <div className="w-80 shrink-0 min-h-0 border-l border-[#d4c4d4] bg-[#faf7fa] flex flex-col overflow-hidden">
+              <div className="shrink-0 px-4 py-4 border-b border-[#e4d4e4] bg-white">
+                <p className="text-xs font-semibold text-[#5b2d5b] mb-2">
+                  Jump to week
+                </p>
+                <input
+                  type="date"
+                  value={panelDate}
+                  onChange={(e) => handlePanelDateChange(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm text-[#3b1a3b] bg-white border border-[#d4c4d4] rounded-lg focus:outline-none focus:border-rose-400"
+                />
+                <p className="text-[10px] text-[#a090a0] mt-1.5">
+                  Pick any date to navigate to that week
+                </p>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-scroll px-4 py-4 flex flex-col gap-3">
+                <p className="text-xs font-semibold text-[#3b1a3b]">
+                  {allSorted.length === 0
+                    ? "No exceptions for this queue"
+                    : `All exceptions — ${allSorted.length} total`}
+                </p>
+
+                {allSorted.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="w-10 h-10 rounded-full bg-[#f0e8f0] flex items-center justify-center mb-3">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b6b8b" strokeWidth="2" strokeLinecap="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                        <path d="M16 2v4M8 2v4M3 10h18" />
+                      </svg>
                     </div>
-                  );
-                })
-              )}
+                    <p className="text-xs text-[#a090a0]">
+                      No holidays or exceptions scheduled.
+                    </p>
+                  </div>
+                ) : (
+                  allSorted.map((record, idx) => {
+                    const p = record.payload ?? {};
+                    const dateObj = parseSlotDate(record[slotKey]);
+                    const isCurrentWeek = visibleWeekRecords.some(
+                      (r) => r[slotKey] === record[slotKey]
+                    );
+
+                    return (
+                      <div
+                        key={`${idx}-${record[slotKey]}`}
+                        onClick={() => handleRecordOpen(record)}
+                        className="bg-white rounded-xl border border-[#e4d4e4] overflow-hidden cursor-pointer group hover:border-rose-300 hover:shadow-sm transition-all"
+                      >
+                        <div className="px-3 py-2 bg-[#f5f0f5] border-b border-[#e4d4e4] flex items-center justify-between group-hover:bg-[#ede4ed] transition-colors">
+                          <span className="text-xs font-bold text-[#5b2d5b]">
+                            {isNaN(dateObj)
+                              ? record[slotKey]
+                              : dateObj.toLocaleDateString("en-US", {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {isCurrentWeek && (
+                              <span className="text-[9px] font-semibold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full">
+                                This week
+                              </span>
+                            )}
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c0b0c0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-rose-400 transition-colors">
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
+                          </div>
+                        </div>
+
+                        <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-[#3b1a3b] truncate">
+                            {p.exceptionType ?? "Exception"}
+                          </span>
+                          {p.fullClose && (
+                            <span className="shrink-0 text-[9px] font-semibold bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded">
+                              Full Close
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {inlineForm && (
@@ -486,6 +618,7 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
           key={inlineForm.label}
           inlineForm={inlineForm}
           hooConfig={hooConfig}
+          resourceType={resourceType}
           onClose={() => setInlineForm(null)}
           onDone={handleFormDone}
         />
@@ -518,7 +651,13 @@ export default function HOOWeekView({ hooConfig, selectedQueue }) {
   onClose     — sets inlineForm=null, collapses the panel
   onDone      — called after successful save; refreshes records and collapses panel
 */
-function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
+function InlineFormPanel({
+  inlineForm,
+  hooConfig,
+  resourceType,
+  onClose,
+  onDone,
+}) {
   return (
     /*
       Panel wrapper — sits below the grid in the flex column layout.
@@ -529,7 +668,6 @@ function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
                                              modal background to differentiate it
     */
     <div className="flex-1 flex flex-col overflow-hidden border-t-2 border-[#c8b8c8] bg-[#ede5ed]">
-
       {/*
         Panel header — shows the mode + day label and the close button.
         shrink-0 → stays fixed height; HOOForm below scrolls if needed
@@ -541,11 +679,13 @@ function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
           Examples: "Edit — Monday", "Duplicate — Jun 5", "New Record — Friday"
         */}
         <span className="text-sm font-semibold text-[#3b1a3b]">
-          {inlineForm.mode === "edit"
-            ? `Edit — ${inlineForm.label}`
-            : inlineForm.mode === "duplicate"
-              ? `Duplicate — ${inlineForm.label}`
-              : `New Record — ${inlineForm.label}`}
+          {(() => {
+            let prefix;
+            if (inlineForm.mode === "edit") prefix = "Edit";
+            else if (inlineForm.mode === "duplicate") prefix = "Duplicate";
+            else prefix = "New Record";
+            return `${prefix} — ${inlineForm.label}`;
+          })()}
         </span>
 
         {/*
@@ -554,9 +694,21 @@ function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
           hover:bg-[#d4c8d4] → light mauve hover background
           aria-label="Close" → accessible label for screen readers
         */}
-        <button type="button" onClick={onClose}
-          className="p-1.5 rounded-lg text-[#8b6b8b] hover:bg-[#d4c8d4] transition-colors cursor-pointer" aria-label="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-[#8b6b8b] hover:bg-[#d4c8d4] transition-colors cursor-pointer"
+          aria-label="Close"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
@@ -570,6 +722,7 @@ function InlineFormPanel({ inlineForm, hooConfig, onClose, onDone }) {
       */}
       <HOOForm
         hooConfig={hooConfig}
+        resourceType={resourceType}
         formMode={inlineForm.mode}
         initialValues={inlineForm.initialValues}
         onDone={onDone}

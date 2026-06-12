@@ -67,7 +67,11 @@ export async function searchTableRecords(tableName, pkId, searchValue) {
 export async function createTableRecord(tableName, pkId, body) {
   return fetch(`${BASE}/records`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pkId },
+    headers: {
+      "Content-Type": "application/json",
+      "x-table": tableName,
+      "x-pk": pkId,
+    },
     body: JSON.stringify(body),
   });
 }
@@ -81,9 +85,81 @@ export async function createTableRecord(tableName, pkId, body) {
 export async function updateTableRecord(tableName, pkId, pkVal, body) {
   return fetch(`${BASE}/records`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pkId },
+    headers: {
+      "Content-Type": "application/json",
+      "x-table": tableName,
+      "x-pk": pkId,
+    },
     body: JSON.stringify(body),
   });
+}
+
+/*
+  batchGetTable — fetch multiple records by primary key in one request.
+  Returns { summary, records, report }.
+*/
+export async function batchGetTable(tableName, pk, pkValues) {
+  const res = await fetch(`${BASE}/records/batch-get`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk },
+    body: JSON.stringify({ pkValues }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-get failed: ${res.status}`);
+  return res.json();
+}
+
+/*
+  batchCreateTable — create multiple records in one request.
+  Returns { summary, results }.
+*/
+export async function batchCreateTable(tableName, pk, rows) {
+  const res = await fetch(`${BASE}/records/batch-create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-create failed: ${res.status}`);
+  return res.json();
+}
+
+/*
+  batchUpdateTable — update multiple records in one request.
+  Returns { summary, results }.
+*/
+export async function batchUpdateTable(tableName, pk, rows) {
+  const res = await fetch(`${BASE}/records/batch-update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-update failed: ${res.status}`);
+  return res.json();
+}
+
+/*
+  upsertTableRecord — create or update a single record.
+  Returns { status: "created" | "updated" }.
+*/
+export async function upsertTableRecord(tableName, pkId, data) {
+  return fetch(`${BASE}/records/upsert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pkId },
+    body: JSON.stringify(data),
+  });
+}
+
+/*
+  exportTableRecords — fetches every record in the table (full scan, no filter).
+
+  Hits GET /api/v1/table/records/export
+  Returns an array of full record objects, or throws on failure.
+*/
+export async function exportTableRecords(tableName) {
+  const res = await fetch(`${BASE}/records/export`, {
+    headers: { "x-table": tableName },
+  });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return (await res.json()).items ?? [];
 }
 
 /*

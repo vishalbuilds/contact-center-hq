@@ -40,9 +40,24 @@ import { useState } from "react";
   onDuplicate — called with the full record object when Duplicate is clicked
 */
 export default function DaySlot({
-  label, sublabel, records, isToday, isSchedule, isActive, onEdit, onCreate, onDelete, onDuplicate,
+  label,
+  sublabel,
+  records,
+  isToday,
+  isSchedule,
+  isActive,
+  onEdit,
+  onCreate,
+  onDelete,
+  onDuplicate,
+  onView,
 }) {
   const hasRecords = records.length > 0;
+  let slotBorderStyle;
+  if (isActive)
+    slotBorderStyle = "border-rose-600 ring-2 ring-rose-300 bg-rose-50";
+  else if (isToday) slotBorderStyle = "border-rose-400 bg-rose-50";
+  else slotBorderStyle = "border-[#d4c4d4] bg-white";
 
   return (
     /*
@@ -65,12 +80,7 @@ export default function DaySlot({
     */
     <div
       id={`hoo-day-slot-${label.toLowerCase().replace(/\s+/g, "-")}`}
-      className={`rounded-xl border p-1.5 flex flex-col gap-1 min-h-16 transition-colors
-        ${isActive
-          ? "border-rose-600 ring-2 ring-rose-300 bg-rose-50"
-          : isToday
-            ? "border-rose-400 bg-rose-50"
-            : "border-[#d4c4d4] bg-white"}`}
+      className={`rounded-xl border p-1.5 flex flex-col gap-1 min-h-16 transition-colors ${slotBorderStyle}`}
     >
       {/* ── Day header ─────────────────────────────────────────────── */}
       {/*
@@ -86,7 +96,9 @@ export default function DaySlot({
             → very small all-caps bold text with wide letter spacing
           Colour: rose-700 when today, medium purple otherwise
         */}
-        <span className={`text-[11px] font-bold uppercase tracking-wide leading-none ${isToday ? "text-rose-700" : "text-[#5b2d5b]"}`}>
+        <span
+          className={`text-[11px] font-bold uppercase tracking-wide leading-none ${isToday ? "text-rose-700" : "text-[#5b2d5b]"}`}
+        >
           {label}
         </span>
 
@@ -96,7 +108,9 @@ export default function DaySlot({
           Exception mode: the formatted date ("Jun 3")
           text-[9px] text-[#a090a0] leading-none → tiny grey-purple text
         */}
-        <span className="text-[9px] text-[#a090a0] leading-none">{sublabel}</span>
+        <span className="text-[9px] text-[#a090a0] leading-none">
+          {sublabel}
+        </span>
       </div>
 
       {/* ── Records or empty state ──────────────────────────────────── */}
@@ -116,9 +130,10 @@ export default function DaySlot({
               key={i}
               record={record}
               isSchedule={isSchedule}
-              onEdit={() => onEdit(record)}
-              onDelete={() => onDelete(record)}
-              onDuplicate={() => onDuplicate(record)}
+              onEdit={onEdit ? () => onEdit(record) : null}
+              onDelete={onDelete ? () => onDelete(record) : null}
+              onDuplicate={onDuplicate ? () => onDuplicate(record) : null}
+              onView={!onEdit && onView ? () => onView(record) : null}
             />
           ))
         ) : (
@@ -140,13 +155,15 @@ export default function DaySlot({
             <span className="text-[9px] text-[#c0b0c0]">
               {isSchedule ? "No schedule" : "No exception"}
             </span>
-            <button
-              type="button"
-              onClick={onCreate}
-              className="text-[9px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer px-1.5 py-0.5 rounded border border-rose-200 hover:border-rose-400 transition-colors"
-            >
-              + Create
-            </button>
+            {onCreate && (
+              <button
+                type="button"
+                onClick={onCreate}
+                className="text-[9px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer px-1.5 py-0.5 rounded border border-rose-200 hover:border-rose-400 transition-colors"
+              >
+                + Create
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -183,7 +200,7 @@ export default function DaySlot({
   onDelete   — called when "Yes" is clicked in the delete confirmation
   onDuplicate — called when Duplicate is clicked
 */
-function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
+function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate, onView }) {
   /* payload — all the isPayload fields live here (startTime, endTime, etc.) */
   const p = record.payload ?? {};
 
@@ -202,24 +219,65 @@ function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
     Each button is tiny (text-[9px]) because the columns are very narrow.
     Colours: Edit=rose, Duplicate=violet, Delete=red
   */
-  const actionButtons = (
-    <div className="flex items-center gap-1.5 shrink-0">
-      <button type="button" onClick={onEdit}
-        className="text-[9px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer">
-        Edit
-      </button>
-      <span className="text-[9px] text-[#c0b0c0]">·</span>
-      <button type="button" onClick={onDuplicate}
-        className="text-[9px] font-semibold text-violet-600 hover:text-violet-800 cursor-pointer">
-        Duplicate
-      </button>
-      <span className="text-[9px] text-[#c0b0c0]">·</span>
-      <button type="button" onClick={() => setConfirmingDelete(true)}
-        className="text-[9px] font-semibold text-red-500 hover:text-red-700 cursor-pointer">
-        Delete
-      </button>
-    </div>
-  );
+  const actionButtons = (() => {
+    const items = [
+      onView && (
+        <button
+          key="view"
+          type="button"
+          onClick={onView}
+          className="text-[9px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
+        >
+          View
+        </button>
+      ),
+      onEdit && (
+        <button
+          key="edit"
+          type="button"
+          onClick={onEdit}
+          className="text-[9px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
+        >
+          Edit
+        </button>
+      ),
+      onDuplicate && (
+        <button
+          key="dup"
+          type="button"
+          onClick={onDuplicate}
+          className="text-[9px] font-semibold text-violet-600 hover:text-violet-800 cursor-pointer"
+        >
+          Duplicate
+        </button>
+      ),
+      onDelete && (
+        <button
+          key="del"
+          type="button"
+          onClick={() => setConfirmingDelete(true)}
+          className="text-[9px] font-semibold text-red-500 hover:text-red-700 cursor-pointer"
+        >
+          Delete
+        </button>
+      ),
+    ].filter(Boolean);
+
+    if (!items.length) return null;
+
+    const withDots = items.flatMap((btn, i) =>
+      i === 0
+        ? [btn]
+        : [
+            <span key={`dot-${i}`} className="text-[9px] text-[#c0b0c0]">
+              ·
+            </span>,
+            btn,
+          ],
+    );
+
+    return <div className="flex items-center gap-1.5 shrink-0">{withDots}</div>;
+  })();
 
   return (
     /*
@@ -230,7 +288,6 @@ function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
       min-h-13.5      → minimum height so very short records don't look cramped
     */
     <div className="relative rounded bg-white/80 border border-[#e4d4e4] px-1.5 py-1 flex flex-col gap-0.5 overflow-hidden min-h-13.5">
-
       {/*
         Delete confirmation overlay — shown when confirmingDelete=true.
         Covers the whole card with a near-opaque white background.
@@ -240,12 +297,17 @@ function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
       */}
       {confirmingDelete && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 bg-white/95 rounded px-2">
-          <span className="text-[9px] font-semibold text-[#3b1a3b] text-center leading-tight">Delete this entry?</span>
+          <span className="text-[9px] font-semibold text-[#3b1a3b] text-center leading-tight">
+            Delete this entry?
+          </span>
           <div className="flex gap-1.5">
             {/* Yes — confirms the delete; closes overlay and calls onDelete */}
             <button
               type="button"
-              onClick={() => { setConfirmingDelete(false); onDelete(); }}
+              onClick={() => {
+                setConfirmingDelete(false);
+                onDelete();
+              }}
               className="text-[9px] font-semibold text-white bg-red-600 hover:bg-red-700 px-2 py-0.5 rounded cursor-pointer transition-colors"
             >
               Yes
@@ -277,12 +339,22 @@ function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
             {actionButtons}
           </div>
           {/* Timezone below the time range */}
-          <div className="text-[9px] text-[#8b6b8b] leading-tight truncate">{p.timezone ?? ""}</div>
+          <div className="text-[9px] text-[#8b6b8b] leading-tight truncate">
+            {p.timezone ?? ""}
+          </div>
           {/* VM feature badges — only shown when the boolean flags are true */}
           {(p.vmMenu || p.offerVm) && (
             <div className="flex gap-1 flex-wrap">
-              {p.vmMenu  && <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">VM&nbsp;Menu</span>}
-              {p.offerVm && <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">Offer&nbsp;VM</span>}
+              {p.vmMenu && (
+                <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">
+                  VM&nbsp;Menu
+                </span>
+              )}
+              {p.offerVm && (
+                <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">
+                  Offer&nbsp;VM
+                </span>
+              )}
             </div>
           )}
         </>
@@ -301,7 +373,9 @@ function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
           </div>
           {/* Description — clamped to 2 lines so the card stays compact */}
           {p.description && (
-            <div className="text-[9px] text-[#5b2d5b] leading-tight line-clamp-2">{p.description}</div>
+            <div className="text-[9px] text-[#5b2d5b] leading-tight line-clamp-2">
+              {p.description}
+            </div>
           )}
           {/*
             Full Close badge — shown only when p.fullClose=true.
@@ -309,12 +383,22 @@ function RecordRow({ record, isSchedule, onEdit, onDelete, onDuplicate }) {
             self-start → aligns to the left edge of the flex column
           */}
           {p.fullClose && (
-            <span className="text-[8px] bg-rose-50 text-rose-600 border border-rose-200 px-1 rounded self-start">Full&nbsp;Close</span>
+            <span className="text-[8px] bg-rose-50 text-rose-600 border border-rose-200 px-1 rounded self-start">
+              Full&nbsp;Close
+            </span>
           )}
           {/* VM feature badges */}
           <div className="flex gap-1 flex-wrap">
-            {p.vmMenu  && <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">VM&nbsp;Menu</span>}
-            {p.offerVm && <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">Offer&nbsp;VM</span>}
+            {p.vmMenu && (
+              <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">
+                VM&nbsp;Menu
+              </span>
+            )}
+            {p.offerVm && (
+              <span className="text-[8px] bg-[#f0e8f0] text-[#7b4b7b] px-1 rounded">
+                Offer&nbsp;VM
+              </span>
+            )}
           </div>
         </>
       )}

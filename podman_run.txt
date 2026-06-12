@@ -3,22 +3,23 @@ podman build --no-cache -t contact-center-hq e:\contact-center-hq
 
 
 ===== RUN (no limits) =====
-podman run -d --name contact-center-hq -p 8000:8000 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
+podman rm -f contact-center-hq
+podman run -d --name contact-center-hq -p 8080:8080 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
 
 
 ===== RUN WITH RESOURCE LIMITS =====
 
 -- Small (0.5 CPU / 256MB) --
 podman rm -f contact-center-hq
-podman run -d --name contact-center-hq --cpus 0.5 --memory 256m -p 8000:8000 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
+podman run -d --name contact-center-hq --cpus 0.5 --memory 256m -p 8080:8080 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
 
 -- Medium (1 CPU / 512MB) --
 podman rm -f contact-center-hq
-podman run -d --name contact-center-hq --cpus 1.0 --memory 512m -p 8000:8000 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
+podman run -d --name contact-center-hq --cpus 1.0 --memory 512m -p 8080:8080 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
 
 -- Large (2 CPU / 1GB) --
 podman rm -f contact-center-hq
-podman run -d --name contact-center-hq --cpus 2.0 --memory 1g -p 8000:8000 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
+podman run -d --name contact-center-hq --cpus 2.0 --memory 1g -p 8080:8080 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
 
 
 ===== MONITOR RESOURCES (while load test runs) =====
@@ -36,7 +37,7 @@ podman rm -f contact-center-hq
 ===== REBUILD & RESTART =====
 podman rm -f contact-center-hq
 podman build --no-cache -t contact-center-hq e:\contact-center-hq
-podman run -d --name contact-center-hq -p 8000:8000 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
+podman run -d --name contact-center-hq -p 8080:8080 -v C:\Users\visiv\.aws:/home/appuser/.aws -e AWS_REGION=us-east-1 contact-center-hq
 
 
 ===== DEBUG SHELL =====
@@ -52,4 +53,4 @@ podman ps
 
 
 ===== OPEN APP =====
-http://localhost:8000
+http://localhost:8080

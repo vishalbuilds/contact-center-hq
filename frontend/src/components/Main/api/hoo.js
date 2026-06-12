@@ -64,15 +64,89 @@ export async function getQueueRecords(tableName, queueArn, pk) {
 }
 
 /*
+  batchGetHoo — fetch all records for a list of queue names in one request.
+  Returns { summary, records, report }.
+*/
+export async function batchGetHoo(tableName, pk, gsiKey, sk, queueNames) {
+  const res = await fetch(`${BASE}/batch-get`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk, "x-gsi-key": gsiKey, "x-sk": sk },
+    body: JSON.stringify({ queueNames }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-get failed: ${res.status}`);
+  return res.json();
+}
+
+/*
+  batchCreateHoo — create multiple HOO records in one request.
+  Returns { summary, results }.
+*/
+export async function batchCreateHoo(tableName, pk, sk, rows) {
+  const res = await fetch(`${BASE}/batch-create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk, "x-sk": sk },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-create failed: ${res.status}`);
+  return res.json();
+}
+
+/*
+  batchUpdateHoo — update multiple HOO records in one request.
+  Returns { summary, results }.
+*/
+export async function batchUpdateHoo(tableName, pk, sk, rows) {
+  const res = await fetch(`${BASE}/batch-update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pk, "x-sk": sk },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? `batch-update failed: ${res.status}`);
+  return res.json();
+}
+
+/*
+  upsertHooRecord — create or update a single HOO record.
+  Returns raw fetch Response so caller can check res.ok and read status.
+*/
+export async function upsertHooRecord(tableName, pkId, skId, data) {
+  return fetch(`${BASE}/upsert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pkId, "x-sk": skId },
+    body: JSON.stringify(data),
+  });
+}
+
+/*
+  exportHooRecords — fetches every record in the HOO table (full scan, no filter).
+
+  Hits GET /api/v1/hoo/export
+  Returns an array of full record objects, or throws on failure.
+*/
+export async function exportHooRecords(tableName) {
+  const res = await fetch(`${BASE}/export`, {
+    headers: { "x-table": tableName },
+  });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return (await res.json()).items ?? [];
+}
+
+/*
   createHooRecord — saves a brand-new HOO record to DynamoDB.
 
   Hits POST /api/v1/hoo/record with the full record as JSON body.
   Returns the raw fetch Response so the caller can check res.status.
 */
 export async function createHooRecord(tableName, body, pkId, skId) {
+  const headers = {
+    "Content-Type": "application/json",
+    "x-table": tableName,
+    "x-pk": pkId,
+  };
+  if (skId) headers["x-sk"] = skId;
   return fetch(`${BASE}/record`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-table": tableName, "x-pk": pkId, "x-sk": skId ?? "" },
+    headers,
     body: JSON.stringify(body),
   });
 }
@@ -83,7 +157,14 @@ export async function createHooRecord(tableName, body, pkId, skId) {
   Hits PUT /api/v1/hoo/record with the updated record as the JSON body.
   Returns the raw fetch Response.
 */
-export async function updateHooRecord(tableName, pkVal, skVal, body, pkId, skId) {
+export async function updateHooRecord(
+  tableName,
+  pkVal,
+  skVal,
+  body,
+  pkId,
+  skId,
+) {
   return fetch(`${BASE}/record`, {
     method: "PUT",
     headers: {
@@ -104,7 +185,13 @@ export async function updateHooRecord(tableName, pkVal, skVal, body, pkId, skId)
   Hits DELETE /api/v1/hoo/record
   Throws an Error if the server returns a non-OK status.
 */
-export async function deleteHooRecord(tableName, queueArn, sortValue, pkId, skId) {
+export async function deleteHooRecord(
+  tableName,
+  queueArn,
+  sortValue,
+  pkId,
+  skId,
+) {
   const res = await fetch(`${BASE}/record`, {
     method: "DELETE",
     headers: {
