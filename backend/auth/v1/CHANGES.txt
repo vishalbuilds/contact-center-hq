@@ -1,0 +1,81 @@
+================================================================================
+CHANGE LOG — backend/auth/v1/dependencies.py
+================================================================================
+
+DATE   : 2026-06-05
+AUTHOR : vishalbuilds
+REASON : Cognito groups missing from x-amzn-oidc-data; present only in
+         x-amzn-oidc-accesstoken
+
+--------------------------------------------------------------------------------
+PROBLEM
+--------------------------------------------------------------------------------
+
+AWS ALB injects three auth headers into every request after Cognito login:
+
+  x-amzn-oidc-data         — OIDC userinfo JWT (sub, email, username, exp…)
+  x-amzn-oidc-accesstoken  — Cognito access token JWT (includes groups)
+  x-amzn-oidc-identity     — plain user sub string
+
+The code was reading all claims, including groups, from x-amzn-oidc-data.
+However Cognito does NOT embed group membership in the OIDC userinfo token.
+Groups live in x-amzn-oidc-accesstoken under the claim key "cognito:groups".
+
+Result: claims.get("groups", []) always returned [] → every request hit the
+403 "No recognised group assigned" guard, even for valid Cognito group members.
+
+--------------------------------------------------------------------------------
+WHAT CHANGED  (get_current_user, lines ~126-145)
+--------------------------------------------------------------------------------
+
+Added a fallback block immediately after x-amzn-oidc-data is decoded:
+
+  if not claims.get("groups"):
+      access_token = request.headers.get("x-amzn-oidc-accesstoken")
+      if access_token:
+          try:
+              at_claims = _decode_alb_payload(access_token)
+              groups_from_at = (
+                  at_claims.get("cognito:groups")
+                  or at_claims.get("groups")
+                  or []
+              )
+              if groups_from_at:
+                  claims["groups"] = groups_from_at
+          except Exception:
+              logger.warning("Failed to decode x-amzn-oidc-accesstoken; groups will be empty")
+
+Key decisions:
+  - Only runs when x-amzn-oidc-data has no "groups" (avoids overwriting if a
+    future provider does include groups in the userinfo token).
+  - Tries "cognito:groups" first (Cognito's actual claim key), then falls back
+    to plain "groups" for forward-compatibility.
+  - A decode failure is logged as a warning, not a hard 401 — the existing
+    empty-groups path produces the correct 403 with a clear message.
+  - _decode_alb_payload is reused unchanged; no new helper needed.
+
+--------------------------------------------------------------------------------
+WHAT DID NOT CHANGE
+--------------------------------------------------------------------------------
+
+  - _decode_alb_payload  — unchanged
+  - _build_user          — unchanged
+  - Group priority logic (admin beats viewer) — unchanged
+  - DEV_USER_GROUP bypass — unchanged
+  - All permission guards (require_table_read, etc.) — unchanged
+  - auth_config.yaml     — unchanged
+
+After this fix the merged claims dict looks like:
+
+  {
+    "sub":      "2468f418-...",
+    "email":    "admin_hoo_table@test.com",
+    "username": "admin_hoo_table",
+    "groups":   ["admin_HOO_Table"],
+    "exp":      1780635918,
+    "iss":      "https://cognito-idp.us-east-1.amazonaws.com/..."
+  }
+
+which matches what auth_config.yaml expects for the "admin_HOO_Table" group.
+
+================================================================================

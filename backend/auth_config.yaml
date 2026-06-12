@@ -4,30 +4,28 @@
 # access_level: "admin"  → full read + write
 #               "viewer" → read only
 # resources:    list of "table" and/or "hoo"
-#
-# Replace the placeholder group names with your actual Cognito group names.
 
 groups:
-  cc-admin-all:
+  admin_HOO_Table:
     access_level: admin
     resources: [table, hoo]
 
-  cc-admin-hoo:
+  admin_HOO:
     access_level: admin
     resources: [hoo]
 
-  cc-admin-table:
+  admin_Table:
     access_level: admin
     resources: [table]
 
-  cc-viewer-all:
+  general_HOO_Table:
     access_level: viewer
     resources: [table, hoo]
 
-  cc-viewer-hoo:
+  general_HOO:
     access_level: viewer
     resources: [hoo]
 
-  cc-viewer-table:
+  general_Table:
     access_level: viewer
     resources: [table]

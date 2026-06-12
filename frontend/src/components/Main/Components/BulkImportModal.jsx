@@ -69,9 +69,53 @@ export default function BulkImportModal({ hooConfig, tableConfig, initialMode, i
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
+  const [validationErrors, setValidationErrors] = useState([]);
 
   const meta = mode ? MODE_META[mode] : null;
   const colorKey = mode ? { get: "blue", create: "emerald", update: "amber" }[mode] : "blue";
+
+  // ── Schema validation helpers ────────────────────────────────────────────
+
+  /* Returns a human-readable hint for what value a field expects */
+  const fieldHint = (f) => {
+    if (f.type === "dropdown" && f.options?.length)
+      return f.options.filter((o) => o !== "").join(", ");
+    if (f.type === "boolean") return "true or false";
+    if (f.type === "date")    return "MM/DD/YYYY";
+    if (f.type === "time")    return "HH:MM (24-hour, e.g. 09:00)";
+    if (f.type === "integer") return "whole number";
+    return "—";
+  };
+
+  /* Validates parsed rows against schema; returns array of { row, field, msg } */
+  const validateRows = (rowsToCheck, currentMode) => {
+    if (currentMode === "get" || !config?.fields) return [];
+    const errs = [];
+    rowsToCheck.forEach((row, rowIdx) => {
+      config.fields.forEach((f) => {
+        if (f.hidden) return;
+        const val     = f.isPayload ? row.payload?.[f.id] : row[f.id];
+        const strVal  = val === null || val === undefined ? "" : String(val);
+        /* Required check */
+        if (f.required && strVal === "") {
+          errs.push({ row: rowIdx + 1, field: f.title || f.id, msg: "required but empty" });
+          return;
+        }
+        if (strVal === "") return;
+        /* Dropdown options check */
+        if (f.type === "dropdown" && f.options?.length) {
+          if (!f.options.includes(strVal)) {
+            errs.push({
+              row:   rowIdx + 1,
+              field: f.title || f.id,
+              msg:   `"${strVal}" is not valid — accepted: ${f.options.filter((o) => o !== "").join(", ")}`,
+            });
+          }
+        }
+      });
+    });
+    return errs;
+  };
 
   // ── Template download ────────────────────────────────────────────────────
 
@@ -105,6 +149,7 @@ export default function BulkImportModal({ hooConfig, tableConfig, initialMode, i
     }
     if (parsed.length === 0) { setError("No valid rows found in file."); return; }
     setRows(parsed);
+    setValidationErrors(validateRows(parsed, mode));
     setStep("preview");
   };
 
@@ -233,6 +278,58 @@ export default function BulkImportModal({ hooConfig, tableConfig, initialMode, i
                 </button>
               </div>
 
+              {/* ── Field Reference ── */}
+              {mode === "get" ? (
+                <div className="mb-4 px-4 py-3 bg-white rounded-xl border border-[#d4c4d4] text-xs text-[#5b2d5b]">
+                  <span className="font-semibold text-[#3b1a3b]">CSV format:</span>{" "}
+                  one column — <span className="font-mono text-rose-700">{isHoo ? config.GSIKey : config.partitionKey}</span> — one queue or record name per row.
+                </div>
+              ) : config.fields && (
+                <details className="mb-4 bg-white rounded-xl border border-[#d4c4d4] group">
+                  <summary className="px-4 py-2.5 text-xs font-semibold text-[#3b1a3b] cursor-pointer select-none list-none flex items-center justify-between hover:bg-[#f5f0f5] rounded-xl transition-colors">
+                    <span>Field Reference — what to fill in each CSV column</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-[#8b6b8b] group-open:rotate-180 transition-transform">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </summary>
+                  <div className="px-4 pb-3 overflow-x-auto">
+                    <table className="text-xs w-full min-w-max border-collapse">
+                      <thead>
+                        <tr className="text-left text-[#5b2d5b] border-b border-[#e8d8e8]">
+                          <th className="pb-2 pr-5 font-semibold">Field (CSV column)</th>
+                          <th className="pb-2 pr-5 font-semibold">Required</th>
+                          <th className="pb-2 pr-5 font-semibold">Type</th>
+                          <th className="pb-2 pr-5 font-semibold">Valid Values / Format</th>
+                          <th className="pb-2 font-semibold">Default</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {config.fields.filter((f) => !f.hidden).map((f) => {
+                          const colName = f.isPayload ? `payload.${f.id}` : f.id;
+                          return (
+                            <tr key={f.id} className="border-b border-[#f5f0f5] last:border-0">
+                              <td className="py-1.5 pr-5 font-medium text-[#3b1a3b] font-mono">{colName}</td>
+                              <td className="py-1.5 pr-5">
+                                {f.required
+                                  ? <span className="text-rose-600 font-semibold">Yes</span>
+                                  : <span className="text-[#a090a0]">No</span>}
+                              </td>
+                              <td className="py-1.5 pr-5 text-[#8b6b8b]">{f.type}</td>
+                              <td className="py-1.5 pr-5 text-[#5b2d5b]">{fieldHint(f)}</td>
+                              <td className="py-1.5 text-[#8b6b8b] font-mono">
+                                {f.defaultValue !== undefined && f.defaultValue !== ""
+                                  ? String(f.defaultValue)
+                                  : <span className="text-[#c0b0c0]">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -314,6 +411,26 @@ export default function BulkImportModal({ hooConfig, tableConfig, initialMode, i
                   </table>
                 </div>
 
+                {/* Validation errors */}
+                {validationErrors.length > 0 && (
+                  <div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="text-sm font-semibold text-red-700 mb-2">
+                      {validationErrors.length} validation error{validationErrors.length !== 1 ? "s" : ""} found — please recheck your data before uploading
+                    </p>
+                    <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+                      {validationErrors.slice(0, 30).map((e, i) => (
+                        <p key={i} className="text-xs text-red-600">
+                          Row {e.row} · <span className="font-semibold">{e.field}</span>: {e.msg}
+                        </p>
+                      ))}
+                      {validationErrors.length > 30 && (
+                        <p className="text-xs text-red-400 mt-0.5">
+                          …and {validationErrors.length - 30} more errors
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {warning && <p className="mt-2 text-sm text-amber-600">{warning}</p>}
                 {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
               </div>
@@ -383,16 +500,22 @@ export default function BulkImportModal({ hooConfig, tableConfig, initialMode, i
               </button>
             )}
             {step === "preview" && (
-              <button type="button" onClick={() => { setRows([]); setWarning(""); setFileName(""); setStep("file"); }}
+              <button type="button" onClick={() => { setRows([]); setWarning(""); setFileName(""); setValidationErrors([]); setStep("file"); }}
                 className="px-4 py-2 text-sm font-semibold text-[#5b2d5b] bg-white border border-[#d4c4d4] rounded-lg hover:bg-[#f5f0f5] cursor-pointer">
                 Change File
               </button>
             )}
             {step === "preview" && (
-              <button type="button" onClick={handleSubmit}
-                className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border active:scale-95 transition-all cursor-pointer ${COLOR[colorKey].btn} border-transparent`}>
-                {meta.submitLabel(rows.length)}
-              </button>
+              validationErrors.length === 0 ? (
+                <button type="button" onClick={handleSubmit}
+                  className={`px-5 py-2 text-sm font-semibold text-white rounded-lg border active:scale-95 transition-all cursor-pointer ${COLOR[colorKey].btn} border-transparent`}>
+                  {meta.submitLabel(rows.length)}
+                </button>
+              ) : (
+                <span className="text-xs font-medium text-red-600">
+                  Fix {validationErrors.length} error{validationErrors.length !== 1 ? "s" : ""} above to enable upload
+                </span>
+              )
             )}
             {step === "done" && mode === "get" && result?.records?.length > 0 && (
               <button type="button" onClick={downloadResults}

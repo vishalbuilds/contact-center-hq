@@ -56,6 +56,9 @@ export default function BooleanField({ field, value, onChange, error }) {
       <p className="text-[10px] text-[#7a4f7a] leading-tight">
         {field.description}
       </p>
+      <p className="text-[10px] text-[#8b6b8b] leading-tight mt-0.5">
+        Value: true or false
+      </p>
 
       {/*
         Button group — the two toggles sit side by side.

@@ -99,6 +99,9 @@ export default function DateField({ field, value, onChange, error }) {
       <p className="text-[10px] text-[#7a4f7a] leading-tight">
         {field.description}
       </p>
+      <p className="text-[10px] text-[#8b6b8b] leading-tight mt-0.5">
+        Format: MM/DD/YYYY
+      </p>
 
       {/*
         Date input — the browser's native calendar date picker.

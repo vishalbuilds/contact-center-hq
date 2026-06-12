@@ -283,7 +283,7 @@ export default function HOOForm({
           bg-amber-50 border border-amber-200 → soft yellow background + border
           text-amber-700 → dark amber text
         */}
-        {formMode === "duplicate" && (
+        {formMode === "duplicate" && !submitDone && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
             Fields copied. Enter a new <strong>{pkId}</strong>
             {skId && (
@@ -301,6 +301,19 @@ export default function HOOForm({
           bg-red-50 border border-red-200 → soft red background + border
           Appears above the fields so it is immediately visible.
         */}
+        {submitDone && (
+          <div className="max-w-lg mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+            <span className="font-semibold">
+              {formMode === "edit" ? "Updated" : "Created"}:
+            </span>{" "}
+            <span className="font-semibold">{formValues[hooConfig.GSIKey]}</span>
+            {formValues[hooConfig.partitionKey] && (
+              <span className="ml-1 text-xs text-emerald-600 font-mono">
+                ({formValues[hooConfig.partitionKey]})
+              </span>
+            )}
+          </div>
+        )}
         {submitError && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
             {submitError}

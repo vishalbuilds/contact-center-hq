@@ -496,23 +496,32 @@ export default function HOOWeekView({
         {/* Right panel */}
         {showPanel && (() => {
           // All exceptions for this queue sorted chronologically
-          const allSorted = [...records].sort((a, b) => {
-            const toMs = (s) => {
+          const parseSlotDate = (s) => {
+            if (!s) return new Date("invalid");
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
               const [m, d, y] = s.split("/");
-              return new Date(`${y}-${m}-${d}`).getTime();
-            };
-            return toMs(a[slotKey]) - toMs(b[slotKey]);
-          });
+              return new Date(`${y}-${m}-${d}T00:00:00`);
+            }
+            return new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00` : s);
+          };
+          const allSorted = [...records].sort(
+            (a, b) => parseSlotDate(a[slotKey]) - parseSlotDate(b[slotKey]),
+          );
 
           // Navigate to the week containing a record and open it
           const handleRecordOpen = (record) => {
-            const [mm, dd, yyyy] = record[slotKey].split("/");
-            handlePanelDateChange(`${yyyy}-${mm}-${dd}`);
+            const d = parseSlotDate(record[slotKey]);
+            if (!isNaN(d)) {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              handlePanelDateChange(`${y}-${m}-${day}`);
+            }
             openEdit(record);
           };
 
           return (
-            <div className="w-80 shrink-0 border-l border-[#d4c4d4] bg-[#faf7fa] flex flex-col overflow-hidden">
+            <div className="w-80 shrink-0 min-h-0 border-l border-[#d4c4d4] bg-[#faf7fa] flex flex-col overflow-hidden">
               <div className="shrink-0 px-4 py-4 border-b border-[#e4d4e4] bg-white">
                 <p className="text-xs font-semibold text-[#5b2d5b] mb-2">
                   Jump to week
@@ -528,7 +537,7 @@ export default function HOOWeekView({
                 </p>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+              <div className="flex-1 min-h-0 overflow-y-scroll px-4 py-4 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-[#3b1a3b]">
                   {allSorted.length === 0
                     ? "No exceptions for this queue"
@@ -548,28 +557,29 @@ export default function HOOWeekView({
                     </p>
                   </div>
                 ) : (
-                  allSorted.map((record) => {
+                  allSorted.map((record, idx) => {
                     const p = record.payload ?? {};
-                    const [mm, dd, yyyy] = record[slotKey].split("/");
-                    const dateObj = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+                    const dateObj = parseSlotDate(record[slotKey]);
                     const isCurrentWeek = visibleWeekRecords.some(
                       (r) => r[slotKey] === record[slotKey]
                     );
 
                     return (
                       <div
-                        key={record[slotKey]}
+                        key={`${idx}-${record[slotKey]}`}
                         onClick={() => handleRecordOpen(record)}
                         className="bg-white rounded-xl border border-[#e4d4e4] overflow-hidden cursor-pointer group hover:border-rose-300 hover:shadow-sm transition-all"
                       >
                         <div className="px-3 py-2 bg-[#f5f0f5] border-b border-[#e4d4e4] flex items-center justify-between group-hover:bg-[#ede4ed] transition-colors">
                           <span className="text-xs font-bold text-[#5b2d5b]">
-                            {dateObj.toLocaleDateString("en-US", {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
+                            {isNaN(dateObj)
+                              ? record[slotKey]
+                              : dateObj.toLocaleDateString("en-US", {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
                           </span>
                           <div className="flex items-center gap-1.5">
                             {isCurrentWeek && (
@@ -583,80 +593,14 @@ export default function HOOWeekView({
                           </div>
                         </div>
 
-                        <div className="px-3 py-2.5 flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-[#3b1a3b]">
-                              {p.exceptionType ?? "Exception"}
+                        <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-[#3b1a3b] truncate">
+                            {p.exceptionType ?? "Exception"}
+                          </span>
+                          {p.fullClose && (
+                            <span className="shrink-0 text-[9px] font-semibold bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded">
+                              Full Close
                             </span>
-                            {p.fullClose && (
-                              <span className="text-[9px] font-semibold bg-rose-50 text-rose-600 border border-rose-200 px-1.5 py-0.5 rounded">
-                                Full Close
-                              </span>
-                            )}
-                          </div>
-                          {p.description && (
-                            <p className="text-xs text-[#5b2d5b] leading-relaxed line-clamp-2">
-                              {p.description}
-                            </p>
-                          )}
-                          {p.timezone && (
-                            <p className="text-[10px] text-[#a090a0]">{p.timezone}</p>
-                          )}
-                          <div className="flex gap-1.5 flex-wrap">
-                            {p.vmMenu && (
-                              <span className="text-[9px] bg-[#f0e8f0] text-[#7b4b7b] px-2 py-0.5 rounded-full border border-[#e0d0e0]">
-                                VM Menu
-                              </span>
-                            )}
-                            {p.offerVm && (
-                              <span className="text-[9px] bg-[#f0e8f0] text-[#7b4b7b] px-2 py-0.5 rounded-full border border-[#e0d0e0]">
-                                Offer VM
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Admin action buttons — stopPropagation so card click doesn't fire */}
-                          {canWrite(resourceType) && (
-                            <div
-                              className="mt-1 flex items-center gap-2 flex-wrap"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => openEdit(record)}
-                                className="px-3 py-1 text-xs font-semibold text-white bg-rose-700 rounded-lg hover:bg-rose-900 active:scale-95 transition-all cursor-pointer"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => openDuplicate(record)}
-                                className="px-3 py-1 text-xs font-semibold text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-50 hover:border-violet-400 active:scale-95 transition-all cursor-pointer"
-                              >
-                                Duplicate
-                              </button>
-                              {confirmDeleteSortKey === record[slotKey] ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-[#3b1a3b]">Delete?</span>
-                                  <button type="button"
-                                    onClick={() => { handleDelete(record); setConfirmDeleteSortKey(null); }}
-                                    className="px-2 py-1 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 cursor-pointer transition-colors">
-                                    Yes
-                                  </button>
-                                  <button type="button"
-                                    onClick={() => setConfirmDeleteSortKey(null)}
-                                    className="px-2 py-1 text-xs font-semibold text-[#5b2d5b] bg-[#e8d8e8] rounded-lg hover:bg-[#d4c4d4] cursor-pointer transition-colors">
-                                    No
-                                  </button>
-                                </div>
-                              ) : (
-                                <button type="button"
-                                  onClick={() => setConfirmDeleteSortKey(record[slotKey])}
-                                  className="px-3 py-1 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-400 active:scale-95 transition-all cursor-pointer">
-                                  Delete
-                                </button>
-                              )}
-                            </div>
                           )}
                         </div>
                       </div>

@@ -10,10 +10,10 @@ RUN npm run build
 # Output: /app/frontend/dist
 
 # ---- Stage 2: Python runtime ----
-FROM python:3.12-slim AS runtime
+FROM python:3.13-slim AS runtime
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
 # Install uv

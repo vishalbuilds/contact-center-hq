@@ -80,6 +80,7 @@ export default function RecordForm({
   const [formValues, setFormValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const [pkError, setPkError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitDone, setSubmitDone] = useState(false);
   const doneTimerRef = useRef(null);
@@ -100,6 +101,7 @@ export default function RecordForm({
     setFormValues((prev) => ({ ...prev, [fieldId]: value }));
     if (errors[fieldId]) setErrors((prev) => ({ ...prev, [fieldId]: false }));
     if (pkError && pkField && fieldId === pkField.id) setPkError("");
+    if (submitError) setSubmitError("");
   };
 
   /* handleSubmit — validates, builds the body, calls the API */
@@ -165,7 +167,7 @@ export default function RecordForm({
           body,
         );
         if (!res.ok) {
-          setPkError("Failed to save record. Please try again.");
+          setSubmitError("Failed to save record. Please try again.");
           return;
         }
       }
@@ -173,7 +175,7 @@ export default function RecordForm({
       setSubmitDone(true);
       doneTimerRef.current = setTimeout(onDone, 1500);
     } catch {
-      setPkError("An unexpected error occurred. Please try again.");
+      setSubmitError("An unexpected error occurred. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -200,10 +202,25 @@ export default function RecordForm({
           Duplicate mode banner — reminds user to set a new unique pk.
           bg-amber-50 border border-amber-200 → soft yellow warning colour
         */}
-        {formMode === "duplicate" && (
+        {submitDone && (
+          <div className="max-w-lg mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+            <span className="font-semibold">
+              {formMode === "edit" ? "Updated" : "Created"}:
+            </span>{" "}
+            <span className="font-semibold font-mono">
+              {String(formValues[pkField?.id] ?? "")}
+            </span>
+          </div>
+        )}
+        {formMode === "duplicate" && !submitDone && (
           <div className="max-w-lg mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
             All fields copied. Set a new unique{" "}
             <strong>{pkField?.title ?? "primary key"}</strong> before creating.
+          </div>
+        )}
+        {submitError && (
+          <div className="max-w-lg mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {submitError}
           </div>
         )}
 

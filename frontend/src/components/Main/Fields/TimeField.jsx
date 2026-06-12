@@ -64,6 +64,9 @@ export default function TimeField({ field, value, onChange, error }) {
       <p className="text-[10px] text-[#7a4f7a] leading-tight">
         {field.description}
       </p>
+      <p className="text-[10px] text-[#8b6b8b] leading-tight mt-0.5">
+        Format: HH:MM (24-hour, e.g. 09:00 or 17:30)
+      </p>
 
       {/*
         Time input — the browser's native time picker.

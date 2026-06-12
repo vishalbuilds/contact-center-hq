@@ -49,10 +49,10 @@ def _build_user(group: str, cfg: dict, claims: dict | None = None) -> User:
         # User model and does not need to change.
         #
         # Cognito (current):
-        #   username  → "cognito:username"  (falls back to "preferred_username", "sub")
+        #   username  → "username"  (falls back to "preferred_username", "sub")
         #   full name → "name"
         #   email     → "email"
-        #   groups    → "cognito:groups"  (see get_current_user below)
+        #   groups    → "groups"  (see get_current_user below)
         #
         # Microsoft Entra ID (future, likely keys):
         #   username  → "preferred_username" or "upn"
@@ -61,7 +61,7 @@ def _build_user(group: str, cfg: dict, claims: dict | None = None) -> User:
         #   groups    → "groups" (object IDs) — update get_current_user too
         # ─────────────────────────────────────────────────────────────────────
         username = (
-            claims.get("cognito:username")
+            claims.get("username")
             or claims.get("preferred_username")
             or claims.get("sub", "")
         )
@@ -124,13 +124,29 @@ async def get_current_user(request: Request) -> User:
         raise HTTPException(401, "Invalid auth token")
 
     # ── PROVIDER: group membership claim ─────────────────────────────────────
-    # Cognito embeds group membership in "cognito:groups" as a list of strings.
-    # Microsoft Entra ID uses "groups" (UUIDs) or "roles" (app-role names).
-    # Update the claim key and matching logic in auth_config.yaml group names
-    # to match whatever the new provider sends.
+    # Cognito does not include groups in x-amzn-oidc-data (the OIDC userinfo
+    # JWT). Groups are present in x-amzn-oidc-accesstoken (the Cognito access
+    # token) under "cognito:groups". We decode the access token and merge the
+    # groups into claims so the rest of the logic stays unchanged.
+    # When switching providers, update the header name and claim key here.
     # ─────────────────────────────────────────────────────────────────────────
+    if not claims.get("groups"):
+        access_token = request.headers.get("x-amzn-oidc-accesstoken")
+        if access_token:
+            try:
+                at_claims = _decode_alb_payload(access_token)
+                groups_from_at = (
+                    at_claims.get("cognito:groups")
+                    or at_claims.get("groups")
+                    or []
+                )
+                if groups_from_at:
+                    claims["groups"] = groups_from_at
+            except Exception:
+                logger.warning("Failed to decode x-amzn-oidc-accesstoken; groups will be empty")
+
     # Pick the highest-privilege recognised group: admin beats viewer.
-    groups: list[str] = claims.get("cognito:groups", [])
+    groups: list[str] = claims.get("groups", [])
     best_group: str | None = None
     best_cfg: dict | None = None
 

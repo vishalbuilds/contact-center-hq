@@ -69,6 +69,11 @@ export default function DropdownField({ field, value, onChange, error }) {
       <p className="text-[10px] text-[#7a4f7a] leading-tight">
         {field.description}
       </p>
+      {field.options && field.options.filter((o) => o !== "").length > 0 && (
+        <p className="text-[10px] text-[#8b6b8b] leading-tight mt-0.5">
+          Options: {field.options.filter((o) => o !== "").join(" · ")}
+        </p>
+      )}
 
       {/*
         <select> — the native browser dropdown menu.
